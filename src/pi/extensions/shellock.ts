@@ -33,15 +33,12 @@ export default function shellockExtension(pi: ExtensionAPI) {
   }));
 
   pi.on("session_start", async (_event, ctx) => {
-    const status = await getCaseFileStatus(ctx.cwd);
-    applyTerminalBranding(ctx, status);
-
+    let status = await getCaseFileStatus(ctx.cwd);
     if (status.hasMission) {
       await ensureCaseFile(ctx.cwd);
-      ctx.ui.notify("Shellock case file loaded. Use /shellock-status for state or /shellock <task> to continue mission work.", "info");
-    } else {
-      ctx.ui.notify("Shellock pack loaded. No case file created. Use /shellock-init <authorized mission> when ready.", "info");
+      status = await getCaseFileStatus(ctx.cwd);
     }
+    applyTerminalBranding(ctx, status);
   });
 
   pi.registerCommand("shellock", {
@@ -186,21 +183,20 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
     invalidate() {},
     render(width: number): string[] {
       const brand = theme.bold(theme.fg("accent", "shellock"));
-      const role = theme.fg("muted", "security operator");
-      const caseText = status.hasMission ? theme.fg("success", "case ready") : theme.fg("warning", "no case");
-      const metrics = status.hasMission
-        ? `h${status.hypothesisCount} f${status.findingCount} r${status.runCount}`
-        : "mission not initialized";
-      const action = status.hasMission ? "/shellock-status  /shellock <task>" : "/shellock-init <authorized mission>";
-      const separator = theme.fg("dim", "|");
-      const line1 = `${brand} ${role}`;
-      const line2 = `${caseText} ${separator} ${theme.fg("muted", shortRuntimeStatus())} ${separator} ${theme.fg("muted", metrics)} ${separator} ${theme.fg("dim", action)}`;
-      const border = theme.fg("borderMuted", "-".repeat(Math.max(0, Math.min(width, 96))));
+      const role = theme.fg("muted", "security research harness");
+      const caseText = status.hasMission ? theme.fg("success", "case ready") : theme.fg("warning", "case none");
+      const runtime = theme.fg("muted", `runtime ${shortRuntimeStatus()}`);
+      const state = status.hasMission
+        ? theme.fg("muted", `record h${status.hypothesisCount} f${status.findingCount} r${status.runCount}`)
+        : theme.fg("muted", "state awaiting authorization");
+      const action = status.hasMission
+        ? theme.fg("dim", "next /shellock-status  /shellock <task>")
+        : theme.fg("dim", "start /shellock-init <authorized mission>");
 
       return [
-        truncateToWidth(line1, width, theme.fg("dim", "...")),
-        truncateToWidth(line2, width, theme.fg("dim", "...")),
-        border,
+        truncateToWidth(`${brand} ${role}`, width, theme.fg("dim", "...")),
+        truncateToWidth(`${caseText}  ${runtime}  ${state}`, width, theme.fg("dim", "...")),
+        truncateToWidth(action, width, theme.fg("dim", "...")),
       ];
     },
   }));

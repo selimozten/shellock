@@ -61,6 +61,16 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.equal(harness.hiddenThinkingLabels.at(-1), "operator notes");
   assert.equal(harness.workingMessages.at(-1), "Shellock is thinking");
   assert.equal(harness.headers.length, 1);
+  assert.equal(harness.notifications.length, 0);
+
+  const header = harness.headers[0](undefined, createTheme()).render(80);
+  assert.deepEqual(header, [
+    "shellock security research harness",
+    "case none  runtime local bash  state awaiting authorization",
+    "start /shellock-init <authorized mission>",
+  ]);
+  assert.ok(header.every((line) => line.length <= 80));
+  assert.ok(header.every((line) => !/^-+$/.test(line)));
 });
 
 function createExtensionHarness() {
@@ -115,11 +125,18 @@ function createCommandContext(cwd, harness, options = {}) {
       setHeader(factory) {
         harness.headers.push(factory);
       },
-      theme: {
-        fg(_kind, value) {
-          return value;
-        },
-      },
+      theme: createTheme(),
+    },
+  };
+}
+
+function createTheme() {
+  return {
+    fg(_kind, value) {
+      return value;
+    },
+    bold(value) {
+      return value;
     },
   };
 }
