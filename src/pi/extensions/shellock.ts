@@ -2,8 +2,15 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { truncateToWidth } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  KeybindingsManager,
+  ReadonlyFooterDataProvider,
+} from "@earendil-works/pi-coding-agent";
+import type { Component, EditorTheme, TUI } from "@earendil-works/pi-tui";
 import { buildAssessmentPrompt } from "../../agent/prompt-pack.js";
 import { formatDoctorReport, runDoctor } from "../../doctor/doctor.js";
 import { generateReport } from "../../report/report.js";
@@ -179,6 +186,8 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
   ctx.ui.setTitle(`Shellock - ${basename(ctx.cwd)} - ${status.hasMission ? "case" : "pack"}`);
   ctx.ui.setHiddenThinkingLabel("operator notes");
   ctx.ui.setWorkingMessage(status.hasMission ? "Shellock is working the case" : "Shellock is thinking");
+  ctx.ui.setFooter((tui, theme, footerData) => new ShellockFooter(ctx, status, footerData, () => tui.requestRender()));
+  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings, ctx, status));
   ctx.ui.setHeader((_tui, theme) => ({
     invalidate() {},
     render(width: number): string[] {
@@ -200,6 +209,137 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
       ];
     },
   }));
+}
+
+class ShellockEditor extends CustomEditor {
+  constructor(
+    tui: TUI,
+    theme: EditorTheme,
+    keybindings: KeybindingsManager,
+    private readonly ctx: ExtensionContext,
+    private readonly status: CaseFileStatus,
+  ) {
+    super(tui, theme, keybindings, { paddingX: 0 });
+  }
+
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (lines.length < 2) return lines;
+
+    const theme = this.ctx.ui.theme;
+    const mode = this.status.hasMission ? "case" : "pack";
+    const topLeft = theme.fg("accent", " shellock ");
+    const topRight = theme.fg(this.status.hasMission ? "success" : "warning", ` ${mode} `);
+    const bottomLeft = theme.fg("muted", ` ${shortRuntimeStatus()} `);
+    const bottomRight = theme.fg("dim", ` ${formatContextUsage(this.ctx)} `);
+
+    lines[0] = fitBorderLine(topLeft, topRight, width, text => this.borderColor(text));
+    lines[lines.length - 1] = fitBorderLine(bottomLeft, bottomRight, width, text => this.borderColor(text));
+    return lines;
+  }
+}
+
+class ShellockFooter implements Component {
+  private readonly unsubscribe: () => void;
+
+  constructor(
+    private readonly ctx: ExtensionContext,
+    private readonly status: CaseFileStatus,
+    private readonly footerData: ReadonlyFooterDataProvider,
+    requestRender: () => void,
+  ) {
+    this.unsubscribe = footerData.onBranchChange(requestRender);
+  }
+
+  dispose(): void {
+    this.unsubscribe();
+  }
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    const theme = this.ctx.ui.theme;
+    const cwd = formatCwd(this.ctx.cwd, this.footerData.getGitBranch());
+    const model = formatModel(this.ctx);
+    const context = formatContextUsage(this.ctx);
+    const caseText = formatCaseSummary(this.status);
+    const runtime = shortRuntimeStatus();
+
+    return [
+      alignLine(theme.fg("muted", cwd), theme.fg("dim", `${model}  ${context}`), width),
+      alignLine(theme.fg(this.status.hasMission ? "success" : "warning", caseText), theme.fg("dim", runtime), width),
+    ];
+  }
+}
+
+function fitBorderLine(left: string, right: string, width: number, border: (text: string) => string): string {
+  if (width <= 0) return "";
+  if (width === 1) return border("-");
+
+  let leftText = left;
+  let rightText = right;
+  const fixedWidth = 2;
+  const minimumGap = 1;
+
+  while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(rightText) > 0) {
+    rightText = truncateToWidth(rightText, Math.max(0, visibleWidth(rightText) - 1), "");
+  }
+  while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(leftText) > 0) {
+    leftText = truncateToWidth(leftText, Math.max(0, visibleWidth(leftText) - 1), "");
+  }
+
+  const fillWidth = Math.max(0, width - fixedWidth - visibleWidth(leftText) - visibleWidth(rightText));
+  return `${border("-")}${leftText}${border("-".repeat(fillWidth))}${rightText}${border("-")}`;
+}
+
+function alignLine(left: string, right: string, width: number): string {
+  if (width <= 0) return "";
+
+  let leftText = left;
+  let rightText = right;
+  const minimumGap = 2;
+
+  while (visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(leftText) > 12) {
+    leftText = truncateToWidth(leftText, Math.max(0, visibleWidth(leftText) - 1), "");
+  }
+  while (visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(rightText) > 0) {
+    rightText = truncateToWidth(rightText, Math.max(0, visibleWidth(rightText) - 1), "");
+  }
+
+  const gap = Math.max(minimumGap, width - visibleWidth(leftText) - visibleWidth(rightText));
+  return truncateToWidth(`${leftText}${" ".repeat(gap)}${rightText}`, width, "");
+}
+
+function formatCwd(cwd: string, branch: string | null): string {
+  const home = process.env.HOME;
+  const compact = home && (cwd === home || cwd.startsWith(`${home}/`)) ? `~${cwd.slice(home.length)}` : cwd;
+  return branch ? `${compact} (${branch})` : compact;
+}
+
+function formatModel(ctx: ExtensionContext): string {
+  if (!ctx.model) return "no model";
+  return `${ctx.model.provider}/${ctx.model.id}`;
+}
+
+function formatContextUsage(ctx: ExtensionContext): string {
+  const usage = ctx.getContextUsage();
+  if (!usage) return "ctx ?";
+
+  const window = formatContextWindow(usage.contextWindow);
+  if (usage.percent === null || usage.tokens === null) return `ctx ?/${window}`;
+
+  return `ctx ${usage.percent.toFixed(1)}%/${window}`;
+}
+
+function formatContextWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
+  return String(tokens);
+}
+
+function formatCaseSummary(status: CaseFileStatus): string {
+  if (!status.hasMission) return "case none";
+  return `case h${status.hypothesisCount} f${status.findingCount} r${status.runCount}`;
 }
 
 function shellockStatusText(status: CaseFileStatus): string {

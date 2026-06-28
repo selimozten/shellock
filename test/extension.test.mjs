@@ -61,6 +61,8 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.equal(harness.hiddenThinkingLabels.at(-1), "operator notes");
   assert.equal(harness.workingMessages.at(-1), "Shellock is thinking");
   assert.equal(harness.headers.length, 1);
+  assert.equal(harness.footers.length, 1);
+  assert.equal(harness.editorComponents.length, 1);
   assert.equal(harness.notifications.length, 0);
 
   const header = harness.headers[0](undefined, createTheme()).render(80);
@@ -71,6 +73,17 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   ]);
   assert.ok(header.every((line) => line.length <= 80));
   assert.ok(header.every((line) => !/^-+$/.test(line)));
+
+  const footer = harness.footers[0](createTui(), createTheme(), createFooterData("main"));
+  const footerLines = footer.render(120);
+  assert.equal(footerLines.length, 2);
+  assert.match(footerLines[0], /shellock-ext-/);
+  assert.match(footerLines[0], /\(main\)/);
+  assert.match(footerLines[0], /test-provider\/test-model/);
+  assert.match(footerLines[0], /ctx 1\.2%\/1\.0M/);
+  assert.match(footerLines[1], /case none/);
+  assert.match(footerLines[1], /local bash/);
+  assert.ok(footerLines.every((line) => line.length <= 120));
 });
 
 function createExtensionHarness() {
@@ -83,6 +96,8 @@ function createExtensionHarness() {
   const hiddenThinkingLabels = [];
   const workingMessages = [];
   const headers = [];
+  const footers = [];
+  const editorComponents = [];
   const pi = {
     on(event, handler) {
       const list = handlers.get(event) ?? [];
@@ -97,7 +112,20 @@ function createExtensionHarness() {
     },
   };
 
-  return { commands, handlers, notifications, sentMessages, statuses, titles, hiddenThinkingLabels, workingMessages, headers, pi };
+  return {
+    commands,
+    handlers,
+    notifications,
+    sentMessages,
+    statuses,
+    titles,
+    hiddenThinkingLabels,
+    workingMessages,
+    headers,
+    footers,
+    editorComponents,
+    pi,
+  };
 }
 
 function createCommandContext(cwd, harness, options = {}) {
@@ -105,7 +133,16 @@ function createCommandContext(cwd, harness, options = {}) {
     cwd,
     mode: options.mode ?? "print",
     hasUI: options.mode === "tui",
+    model: {
+      provider: "test-provider",
+      id: "test-model",
+    },
     isIdle: () => options.idle ?? true,
+    getContextUsage: () => ({
+      tokens: 12_000,
+      contextWindow: 1_000_000,
+      percent: 1.2,
+    }),
     ui: {
       notify(message, type = "info") {
         harness.notifications.push({ message, type });
@@ -125,8 +162,29 @@ function createCommandContext(cwd, harness, options = {}) {
       setHeader(factory) {
         harness.headers.push(factory);
       },
+      setFooter(factory) {
+        harness.footers.push(factory);
+      },
+      setEditorComponent(factory) {
+        harness.editorComponents.push(factory);
+      },
       theme: createTheme(),
     },
+  };
+}
+
+function createTui() {
+  return {
+    requestRender() {},
+  };
+}
+
+function createFooterData(branch) {
+  return {
+    getGitBranch: () => branch,
+    getExtensionStatuses: () => new Map(),
+    getAvailableProviderCount: () => 1,
+    onBranchChange: () => () => {},
   };
 }
 
