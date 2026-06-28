@@ -3,6 +3,7 @@ import { access, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import shellockExtension from "../dist/pi/extensions/shellock.js";
 
 test("/shellock refuses mission work before a case file exists", async () => {
@@ -65,14 +66,14 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.equal(harness.editorComponents.length, 1);
   assert.equal(harness.notifications.length, 0);
 
-  const header = harness.headers[0](undefined, createTheme()).render(80);
-  assert.deepEqual(header, [
-    "shellock security research harness",
-    "case none  runtime local bash  state awaiting authorization",
-    "start /shellock-init <authorized mission>",
-  ]);
-  assert.ok(header.every((line) => line.length <= 80));
-  assert.ok(header.every((line) => !/^-+$/.test(line)));
+  const header = harness.headers[0](undefined, createTheme()).render(120);
+  assert.match(header.join("\n"), /Shellock v0\.1\.0/);
+  assert.match(header.join("\n"), /SHELLOCK/);
+  assert.match(header.join("\n"), /Start: \/shellock-init <authorized mission>/);
+  assert.match(header.join("\n"), /Tool contract/);
+  assert.match(header.join("\n"), /read\/grep\/find\/ls/);
+  assert.match(header.join("\n"), /avoid Python just to print specific file lines/);
+  assert.ok(header.every((line) => visibleWidth(line) <= 120));
 });
 
 function createExtensionHarness() {

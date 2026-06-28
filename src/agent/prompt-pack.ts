@@ -34,6 +34,16 @@ New environment policy:
 
 Do not optimize for theatrical exploitation. Optimize for reproducible, high-signal security work.`;
 
+export const TOOL_USE_CONTRACT_PROMPT = `Pi harness tool-use contract:
+
+- Use read to inspect file contents and specific file regions.
+- Use grep, find, and ls to locate files, symbols, strings, and paths before opening broad content.
+- Use edit for targeted file modifications and write only when creating a new file or intentionally replacing a whole file.
+- Use bash for commands, tests, package managers, runtime operations, scanners, and security tools.
+- Do not run Python, Node, awk, sed, or shell one-liners only to print specific lines from a file when read/grep/find can do it more directly.
+- Do not delete, move, chmod, chown, overwrite, or clean files through bash unless the user requested it, the mission requires it, or the operation is clearly safe cleanup. State the reason first.
+- Prefer the smallest native Pi tool that answers the question; terminal commands are for execution and verification, not routine file browsing.`;
+
 export const COMMAND_PROTOCOL_PROMPT = `For each command-worthy action, use this discipline:
 
 Before:
@@ -69,6 +79,7 @@ Severity is based on demonstrated exploitability, impact, exposure, privileges r
 export function buildAssessmentPrompt(): string {
   return [
     SECURITY_ASSESSMENT_SYSTEM_PROMPT,
+    TOOL_USE_CONTRACT_PROMPT,
     COMMAND_PROTOCOL_PROMPT,
     FINDING_RUBRIC_PROMPT,
   ].join("\n\n---\n\n");

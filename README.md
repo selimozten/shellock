@@ -44,6 +44,17 @@ Run `npm run verify:pi-core` to check that this contract has not drifted.
 `npm pack` and `npm publish` run `prepack`, which rebuilds Shellock and verifies the copied Pi core before producing an artifact.
 The pack verifier also checks that the tarball exposes the distribution surface only: compiled `dist/`, prompts, skills, images, profiles, scripts, README, and the single `shellock` binary.
 
+## Tool Use Contract
+
+Shellock tells the model to use Pi's native file tools first:
+
+- `read` for file contents and specific regions
+- `grep`, `find`, and `ls` for locating files, symbols, strings, and paths
+- `edit` for targeted modifications and `write` for new or intentional whole-file replacement
+- `bash` for commands, tests, package managers, runtime operations, scanners, and security tools
+
+The prompt explicitly discourages Python, Node, `awk`, `sed`, or shell snippets just to print file lines when Pi's native tools can answer directly. Destructive file operations still go through terminal access and must have clear user intent, mission need, or safe-cleanup justification.
+
 ## Install Locally
 
 ```bash

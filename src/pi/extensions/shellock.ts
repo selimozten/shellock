@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,14 @@ import {
 import { initializeWorkspace, readMissionWorkspace, workspacePaths } from "../../workspace/workspace.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const PACKAGE_VERSION = readPackageVersion();
+const SHELLOCK_ASCII = [
+  "  ____  _          _ _            _    ",
+  " / ___|| |__   ___| | | ___   ___| | __",
+  " \\___ \\| '_ \\ / _ \\ | |/ _ \\ / __| |/ /",
+  "  ___) | | | |  __/ | | (_) | (__|   < ",
+  " |____/|_| |_|\\___|_|_|\\___/ \\___|_|\\_\\",
+];
 
 export default function shellockExtension(pi: ExtensionAPI) {
   const activeRuns = new Map<string, ShellockRun>();
@@ -182,27 +190,159 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
   ctx.ui.setHiddenThinkingLabel("reasoning hidden");
   ctx.ui.setWorkingMessage(status.hasMission ? "Shellock is working the case" : "Shellock is thinking");
   ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings, ctx, status));
-  ctx.ui.setHeader((_tui, theme) => ({
-    invalidate() {},
-    render(width: number): string[] {
-      const brand = theme.bold(theme.fg("accent", "shellock"));
-      const role = theme.fg("muted", "security research harness");
-      const caseText = status.hasMission ? theme.fg("success", "case ready") : theme.fg("warning", "case none");
-      const runtime = theme.fg("muted", `runtime ${shortRuntimeStatus()}`);
-      const state = status.hasMission
-        ? theme.fg("muted", `record h${status.hypothesisCount} f${status.findingCount} r${status.runCount}`)
-        : theme.fg("muted", "state awaiting authorization");
-      const action = status.hasMission
-        ? theme.fg("dim", "next /shellock-status  /shellock <task>")
-        : theme.fg("dim", "start /shellock-init <authorized mission>");
+  ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, status, PACKAGE_VERSION, theme));
+}
 
-      return [
-        truncateToWidth(`${brand} ${role}`, width, theme.fg("dim", "...")),
-        truncateToWidth(`${caseText}  ${runtime}  ${state}`, width, theme.fg("dim", "...")),
-        truncateToWidth(action, width, theme.fg("dim", "...")),
-      ];
-    },
-  }));
+class ShellockHeader {
+  constructor(
+    private readonly ctx: ExtensionContext,
+    private readonly status: CaseFileStatus,
+    private readonly version: string,
+    private readonly theme: ExtensionContext["ui"]["theme"],
+  ) {}
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    if (width < 72) return this.renderCompact(width);
+
+    const boxWidth = Math.max(72, width);
+    const innerWidth = boxWidth - 2;
+    if (innerWidth < 94) return this.renderSingleColumn(boxWidth);
+
+    const leftWidth = Math.min(44, Math.max(34, Math.floor(innerWidth * 0.34)));
+    const rightWidth = innerWidth - leftWidth - 1;
+    const leftRows = this.leftPanel(leftWidth);
+    const rightRows = this.rightPanel(rightWidth);
+    const rowCount = Math.max(leftRows.length, rightRows.length);
+    const lines = [this.topBorder(boxWidth)];
+
+    for (let index = 0; index < rowCount; index++) {
+      lines.push(this.splitRow(leftRows[index] ?? "", leftWidth, rightRows[index] ?? "", rightWidth));
+    }
+
+    lines.push(this.bottomBorder(boxWidth));
+    return lines;
+  }
+
+  private renderCompact(width: number): string[] {
+    const theme = this.theme;
+    const caseText = this.status.hasMission ? "case ready" : "case none";
+    return [
+      fitText(`${theme.bold(theme.fg("accent", "shellock"))} ${theme.fg("muted", `v${this.version}`)}`, width),
+      fitText(`${theme.fg("warning", caseText)}  ${theme.fg("muted", shortRuntimeStatus())}`, width),
+      fitText(theme.fg("dim", this.primaryAction()), width),
+    ];
+  }
+
+  private renderSingleColumn(boxWidth: number): string[] {
+    const innerWidth = boxWidth - 2;
+    const rows = [
+      this.theme.bold(this.theme.fg("accent", "SHELLOCK")),
+      this.statusLine(),
+      this.modelLine(),
+      compactCwd(this.ctx.cwd),
+      separatorText(innerWidth, this.theme),
+      this.theme.bold(this.theme.fg("accent", "Mission")),
+      this.primaryAction(),
+      this.recordLine(),
+      separatorText(innerWidth, this.theme),
+      this.theme.bold(this.theme.fg("accent", "Tool contract")),
+      "read/grep/find/ls inspect files and locate text",
+      "edit/write change files through Pi tools",
+      "bash runs tests, scanners, package managers, runtime ops",
+      "avoid Python just to print specific file lines",
+    ];
+
+    return [this.topBorder(boxWidth), ...rows.map(row => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
+  }
+
+  private leftPanel(width: number): string[] {
+    const theme = this.theme;
+    return [
+      "",
+      centerText(theme.bold(theme.fg("accent", "SHELLOCK")), width),
+      "",
+      ...SHELLOCK_ASCII.map(line => centerText(theme.fg("muted", line), width)),
+      "",
+      centerText(theme.fg("muted", this.modelLine()), width),
+      centerText(theme.fg("muted", this.contextLine()), width),
+      centerText(theme.fg("muted", compactCwd(this.ctx.cwd)), width),
+    ];
+  }
+
+  private rightPanel(width: number): string[] {
+    const theme = this.theme;
+    return [
+      theme.bold(theme.fg("accent", "Mission")),
+      this.primaryAction(),
+      this.statusLine(),
+      this.recordLine(),
+      separatorText(width, theme),
+      theme.bold(theme.fg("accent", "Tool contract")),
+      "read/grep/find/ls: inspect files and locate text",
+      "edit/write: change files through Pi tools",
+      "bash: tests, scanners, package managers, runtime ops",
+      "avoid Python just to print specific file lines",
+    ];
+  }
+
+  private topBorder(width: number): string {
+    const theme = this.theme;
+    const innerWidth = width - 2;
+    const title = ` Shellock v${this.version} `;
+    const prefix = "---";
+    const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title));
+    return `${theme.fg("borderMuted", "+")}${theme.fg("borderMuted", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("borderMuted", "-".repeat(fillWidth))}${theme.fg("borderMuted", "+")}`;
+  }
+
+  private bottomBorder(width: number): string {
+    return this.theme.fg("borderMuted", `+${"-".repeat(Math.max(0, width - 2))}+`);
+  }
+
+  private splitRow(left: string, leftWidth: number, right: string, rightWidth: number): string {
+    const theme = this.theme;
+    return [
+      theme.fg("borderMuted", "|"),
+      fitText(left, leftWidth),
+      theme.fg("borderMuted", "|"),
+      fitText(right, rightWidth),
+      theme.fg("borderMuted", "|"),
+    ].join("");
+  }
+
+  private row(content: string, width: number): string {
+    return `${this.theme.fg("borderMuted", "|")}${fitText(content, width)}${this.theme.fg("borderMuted", "|")}`;
+  }
+
+  private primaryAction(): string {
+    return this.status.hasMission
+      ? "Next: /shellock-status or /shellock <task>"
+      : "Start: /shellock-init <authorized mission>";
+  }
+
+  private statusLine(): string {
+    const caseText = this.status.hasMission ? "case ready" : "case none";
+    return `${caseText}  runtime ${shortRuntimeStatus()}`;
+  }
+
+  private recordLine(): string {
+    if (!this.status.hasMission) return "Record: awaiting authorized mission";
+    return `Record: h${this.status.hypothesisCount} f${this.status.findingCount} r${this.status.runCount}`;
+  }
+
+  private modelLine(): string {
+    const model = this.ctx.model;
+    if (!model) return "Model: not selected";
+    const name = model.name ?? model.id;
+    return `Model: ${model.provider}/${name}`;
+  }
+
+  private contextLine(): string {
+    const usage = this.ctx.getContextUsage();
+    const window = usage?.contextWindow ?? this.ctx.model?.contextWindow;
+    return `Context: ${window ? formatTokenWindow(window) : "unknown"}`;
+  }
 }
 
 class ShellockEditor extends CustomEditor {
@@ -248,6 +388,43 @@ function fitBorderLine(left: string, right: string, width: number, border: (text
 
   const fillWidth = Math.max(0, width - fixedWidth - visibleWidth(leftText) - visibleWidth(rightText));
   return `${border("-")}${leftText}${border("-".repeat(fillWidth))}${rightText}${border("-")}`;
+}
+
+function fitText(text: string, width: number): string {
+  if (width <= 0) return "";
+  const clipped = visibleWidth(text) > width ? truncateToWidth(text, width, "") : text;
+  return `${clipped}${" ".repeat(Math.max(0, width - visibleWidth(clipped)))}`;
+}
+
+function centerText(text: string, width: number): string {
+  if (width <= 0) return "";
+  const clipped = visibleWidth(text) > width ? truncateToWidth(text, width, "") : text;
+  const left = Math.floor(Math.max(0, width - visibleWidth(clipped)) / 2);
+  return `${" ".repeat(left)}${clipped}${" ".repeat(Math.max(0, width - left - visibleWidth(clipped)))}`;
+}
+
+function separatorText(width: number, theme: ExtensionContext["ui"]["theme"]): string {
+  return theme.fg("borderMuted", "-".repeat(Math.max(0, width)));
+}
+
+function compactCwd(cwd: string): string {
+  const home = process.env.HOME;
+  return home && (cwd === home || cwd.startsWith(`${home}/`)) ? `~${cwd.slice(home.length)}` : cwd;
+}
+
+function formatTokenWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M context`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k context`;
+  return `${tokens} context`;
+}
+
+function readPackageVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version?: unknown };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function shellockStatusText(status: CaseFileStatus): string {
