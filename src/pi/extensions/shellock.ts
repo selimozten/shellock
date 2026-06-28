@@ -20,12 +20,11 @@ import { initializeWorkspace, readMissionWorkspace, workspacePaths } from "../..
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
-const SHELLOCK_ASCII = [
-  "      .--------.",
-  "     /  .--.   \\",
-  "     |  |  |   |",
-  "     |  '--'   |",
-  "     '---------'",
+const SHELLOCK_WORDMARK = [
+  "       __       ____         __  ",
+  "  ___ / /  ___ / / /__  ____/ /__",
+  " (_-</ _ \\/ -_) / / _ \\/ __/  '_/",
+  "/___/_//_/\\__/_/_/\\___/\\__/_/\\_\\ ",
 ];
 
 export default function shellockExtension(pi: ExtensionAPI) {
@@ -244,7 +243,7 @@ class ShellockHeader {
       this.primaryAction(),
       this.recordLine(),
       separatorText(innerWidth, this.theme),
-      this.theme.bold(this.theme.fg("accent", "Tool contract")),
+      this.theme.bold(this.theme.fg("accent", "Tools")),
       "read/grep/find/ls inspect files and locate text",
       "edit/write change files through Pi tools",
       "bash runs tests, scanners, package managers, runtime ops",
@@ -258,13 +257,13 @@ class ShellockHeader {
     const theme = this.theme;
     return [
       "",
-      centerText(theme.bold(theme.fg("accent", "Shellock")), width),
+      ...SHELLOCK_WORDMARK.map(line => centerText(theme.bold(theme.fg("accent", line)), width)),
+      "",
       centerText(theme.fg("muted", "security research harness"), width),
+      centerText(theme.fg(this.status.hasMission ? "accent" : "warning", this.status.hasMission ? "case ready" : "awaiting authorization"), width),
       "",
-      ...SHELLOCK_ASCII.map(line => centerText(theme.fg("muted", line), width)),
-      "",
-      centerText(theme.fg("muted", this.modelLine()), width),
-      centerText(theme.fg("muted", this.contextLine()), width),
+      centerText(theme.fg("muted", this.modelLine().replace(/^Model: /, "")), width),
+      centerText(theme.fg("muted", this.contextLine().replace(/^Context: /, "")), width),
       centerText(theme.fg("muted", compactCwd(this.ctx.cwd)), width),
     ];
   }
@@ -289,28 +288,28 @@ class ShellockHeader {
     const theme = this.theme;
     const innerWidth = width - 2;
     const title = ` Shellock v${this.version} `;
-    const prefix = "--";
+    const prefix = "══";
     const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title));
-    return `${theme.fg("accent", "+")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", "-".repeat(fillWidth))}${theme.fg("accent", "+")}`;
+    return `${theme.fg("accent", "╔")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", "═".repeat(fillWidth))}${theme.fg("accent", "╗")}`;
   }
 
   private bottomBorder(width: number): string {
-    return this.theme.fg("accent", `+${"-".repeat(Math.max(0, width - 2))}+`);
+    return this.theme.fg("accent", `╚${"═".repeat(Math.max(0, width - 2))}╝`);
   }
 
   private splitRow(left: string, leftWidth: number, right: string, rightWidth: number): string {
     const theme = this.theme;
     return [
-      theme.fg("accent", "|"),
+      theme.fg("accent", "║"),
       fitText(left, leftWidth),
-      theme.fg("borderMuted", "|"),
+      theme.fg("borderMuted", "║"),
       fitText(right, rightWidth),
-      theme.fg("accent", "|"),
+      theme.fg("accent", "║"),
     ].join("");
   }
 
   private row(content: string, width: number): string {
-    return `${this.theme.fg("accent", "|")}${fitText(content, width)}${this.theme.fg("accent", "|")}`;
+    return `${this.theme.fg("accent", "║")}${fitText(content, width)}${this.theme.fg("accent", "║")}`;
   }
 
   private primaryAction(): string {
@@ -357,7 +356,7 @@ function centerText(text: string, width: number): string {
 }
 
 function separatorText(width: number, theme: ExtensionContext["ui"]["theme"]): string {
-  return theme.fg("borderMuted", "-".repeat(Math.max(0, width)));
+  return theme.fg("borderMuted", "═".repeat(Math.max(0, width)));
 }
 
 function compactCwd(cwd: string): string {

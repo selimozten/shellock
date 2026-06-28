@@ -238,3 +238,4 @@ THREAT_MODEL.md
 ## Direction
 
 See [docs/product-direction.md](docs/product-direction.md) for the Pi-family distribution strategy, supported operator modes, and the regular improvement loop.
+See [docs/branding.md](docs/branding.md) for terminal chrome and branding guardrails.

@@ -67,8 +67,17 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.equal(harness.notifications.length, 0);
 
   const header = harness.headers[0](undefined, createTheme()).render(120);
-  assert.match(header.join("\n"), /Shellock v0\.1\.0/);
-  assert.match(header.join("\n"), /Shellock/);
+  const headerText = header.join("\n");
+  assert.ok(header[0].startsWith("╔══ Shellock v0.1.0"));
+  assert.ok(header[0].endsWith("╗"));
+  assert.ok(header.at(-1).startsWith("╚"));
+  assert.ok(header.at(-1).endsWith("╝"));
+  assert.ok(header.some((line) => line.startsWith("║") && line.endsWith("║")));
+  assert.match(headerText, /shellock/);
+  assert.match(headerText, /___ \/ \/  ___ \/ \/ \/__/);
+  assert.match(headerText, /security research harness/);
+  assert.match(headerText, /awaiting authorization/);
+  assert.doesNotMatch(headerText, /\.--------\./);
   assert.match(header.join("\n"), /Start: \/shellock-init <authorized mission>/);
   assert.match(header.join("\n"), /Tools/);
   assert.match(header.join("\n"), /read\/grep\/find\/ls/);
