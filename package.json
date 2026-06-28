@@ -1,0 +1,86 @@
+{
+  "name": "@shellock/pi-coding-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shellock security operations agent harness built on the Pi terminal agent core.",
+  "keywords": [
+    "pi-distribution",
+    "pi-package",
+    "security",
+    "red-team",
+    "blue-team",
+    "opsec",
+    "devsecops",
+    "penetration-testing",
+    "security-assessment",
+    "incus",
+    "agent"
+  ],
+  "bin": {
+    "shellock": "./dist/distro/cli.js"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "skills",
+    "prompts",
+    "themes",
+    "images",
+    "profiles",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "dist/pi/extensions/*.js"
+    ],
+    "skills": [
+      "skills"
+    ],
+    "prompts": [
+      "prompts"
+    ]
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.json && node scripts/copy-pi-core.mjs && chmod +x dist/distro/cli.js",
+    "check": "tsc -p tsconfig.json --noEmit && npm run verify:pi-core && npm run verify:runtime-image",
+    "verify:pi-core": "node scripts/verify-pi-core.mjs",
+    "verify:pi-core:dist": "node scripts/verify-pi-core.mjs --dist",
+    "verify:pack-install": "node scripts/verify-pack-install.mjs",
+    "verify:runtime-image": "node scripts/verify-runtime-image.mjs",
+    "test": "npm run build && npm run verify:pi-core:dist && npm run verify:runtime-image && node --test test/*.test.mjs && npm run verify:pack-install",
+    "link": "npm run build && npm link",
+    "prepack": "npm run build && npm run verify:pi-core:dist && npm run verify:runtime-image"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "0.80.2",
+    "@earendil-works/pi-tui": "^0.80.2",
+    "@silvia-odwyer/photon-node": "0.3.4",
+    "chalk": "5.6.2",
+    "cross-spawn": "7.0.6",
+    "diff": "8.0.4",
+    "glob": "13.0.6",
+    "highlight.js": "10.7.3",
+    "hosted-git-info": "9.0.3",
+    "ignore": "7.0.5",
+    "jiti": "2.7.0",
+    "minimatch": "10.2.5",
+    "proper-lockfile": "4.1.2",
+    "semver": "7.8.0",
+    "typebox": "1.1.38",
+    "undici": "8.5.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}

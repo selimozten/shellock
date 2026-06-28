@@ -1,0 +1,14 @@
+config:
+  limits.cpu: "8"
+  limits.memory: 16GiB
+description: General Shellock lab profile for heavier security research workloads
+devices:
+  eth0:
+    name: eth0
+    network: incusbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+name: lab

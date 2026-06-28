@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+coverage/
+work/
+missions/
+
+# Local Shellock case files from dogfooding this repo
+MISSION.md
+STATE.md
+SURFACE.md
+COVERAGE.md
+THREAT_MODEL.md
+COMMANDS.md
+evidence/
+findings/
+hypotheses/
+reports/
+scratch/
+outputs/

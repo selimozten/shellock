@@ -1,0 +1,199 @@
+image:
+  description: Shellock runtime image
+  distribution: ubuntu
+  release: "24.04"
+  architecture: x86_64
+
+source:
+  downloader: debootstrap
+  url: http://archive.ubuntu.com/ubuntu
+  keys:
+    - 790BC7277767219C42C86F933B4FE6ACC0B21F32
+
+packages:
+  manager: apt
+  update: true
+  cleanup: true
+  sets:
+    - packages:
+        - bash
+        - binwalk
+        - binutils
+        - build-essential
+        - ca-certificates
+        - clang
+        - coreutils
+        - curl
+        - dnsutils
+        - fd-find
+        - file
+        - gdb
+        - git
+        - gobuster
+        - iproute2
+        - iputils-ping
+        - jq
+        - ldap-utils
+        - lld
+        - lldb
+        - ltrace
+        - make
+        - netcat-openbsd
+        - nikto
+        - nmap
+        - openssl
+        - pkg-config
+        - python3
+        - python3-pip
+        - python3-venv
+        - ripgrep
+        - smbclient
+        - socat
+        - sqlite3
+        - sqlmap
+        - strace
+        - sudo
+        - tree
+        - unzip
+        - vim
+        - wget
+        - whois
+        - whatweb
+        - yara
+        - yq
+        - zip
+
+actions:
+  - trigger: post-packages
+    action: |-
+      set -eux
+      useradd -m -s /bin/bash agent
+      echo 'agent ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/agent
+      chmod 0440 /etc/sudoers.d/agent
+      mkdir -p /workspace
+      chown agent:agent /workspace
+      cat >/usr/local/sbin/shellock-install-modern-tools <<'SHELLOCK_INSTALL_MODERN_TOOLS'
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      NUCLEI_VERSION=3.9.0
+      GITLEAKS_VERSION=8.30.1
+      TRUFFLEHOG_VERSION=3.95.6
+      SYFT_VERSION=1.46.0
+      GRYPE_VERSION=0.115.0
+      FFUF_VERSION=2.1.0
+      SEMGREP_VERSION=1.168.0
+
+      tmp="$(mktemp -d)"
+      trap 'rm -rf "$tmp"' EXIT
+
+      arch="$(uname -m)"
+      case "$arch" in
+        x86_64|amd64)
+          go_arch=amd64
+          gitleaks_arch=x64
+          ;;
+        aarch64|arm64)
+          go_arch=arm64
+          gitleaks_arch=arm64
+          ;;
+        *)
+          echo "unsupported architecture: $arch" >&2
+          exit 1
+          ;;
+      esac
+
+      download() {
+        local url="$1"
+        local dest="$2"
+        curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$dest"
+      }
+
+      verify_checksum() {
+        local checksums_url="$1"
+        local archive="$2"
+        local archive_name="$3"
+        local checksums="$tmp/checksums.txt"
+        download "$checksums_url" "$checksums"
+        (cd "$(dirname "$archive")" && grep "[[:space:]]${archive_name}$" "$checksums" | sha256sum -c -)
+      }
+
+      install_from_tar() {
+        local tool="$1"
+        local archive_url="$2"
+        local checksums_url="$3"
+        local archive_name="$4"
+        local archive="$tmp/$archive_name"
+        local extract_dir="$tmp/$tool"
+        mkdir -p "$extract_dir"
+        download "$archive_url" "$archive"
+        verify_checksum "$checksums_url" "$archive" "$archive_name"
+        tar -xzf "$archive" -C "$extract_dir"
+        install -m 0755 "$(find "$extract_dir" -type f -name "$tool" | head -n 1)" "/usr/local/bin/$tool"
+      }
+
+      install_from_zip() {
+        local tool="$1"
+        local archive_url="$2"
+        local checksums_url="$3"
+        local archive_name="$4"
+        local archive="$tmp/$archive_name"
+        local extract_dir="$tmp/$tool"
+        mkdir -p "$extract_dir"
+        download "$archive_url" "$archive"
+        verify_checksum "$checksums_url" "$archive" "$archive_name"
+        unzip -q "$archive" -d "$extract_dir"
+        install -m 0755 "$(find "$extract_dir" -type f -name "$tool" | head -n 1)" "/usr/local/bin/$tool"
+      }
+
+      nuclei_archive="nuclei_${NUCLEI_VERSION}_linux_${go_arch}.zip"
+      install_from_zip \
+        nuclei \
+        "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/${nuclei_archive}" \
+        "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_checksums.txt" \
+        "$nuclei_archive"
+
+      gitleaks_archive="gitleaks_${GITLEAKS_VERSION}_linux_${gitleaks_arch}.tar.gz"
+      install_from_tar \
+        gitleaks \
+        "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${gitleaks_archive}" \
+        "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" \
+        "$gitleaks_archive"
+
+      trufflehog_archive="trufflehog_${TRUFFLEHOG_VERSION}_linux_${go_arch}.tar.gz"
+      install_from_tar \
+        trufflehog \
+        "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/${trufflehog_archive}" \
+        "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_checksums.txt" \
+        "$trufflehog_archive"
+
+      syft_archive="syft_${SYFT_VERSION}_linux_${go_arch}.tar.gz"
+      install_from_tar \
+        syft \
+        "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${syft_archive}" \
+        "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt" \
+        "$syft_archive"
+
+      grype_archive="grype_${GRYPE_VERSION}_linux_${go_arch}.tar.gz"
+      install_from_tar \
+        grype \
+        "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/${grype_archive}" \
+        "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_checksums.txt" \
+        "$grype_archive"
+
+      ffuf_archive="ffuf_${FFUF_VERSION}_linux_${go_arch}.tar.gz"
+      install_from_tar \
+        ffuf \
+        "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/${ffuf_archive}" \
+        "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_checksums.txt" \
+        "$ffuf_archive"
+
+      python3 -m venv /opt/semgrep
+      /opt/semgrep/bin/pip install --no-cache-dir --upgrade pip
+      /opt/semgrep/bin/pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+      ln -sf /opt/semgrep/bin/semgrep /usr/local/bin/semgrep
+
+      chmod 0755 /usr/local/bin/nuclei /usr/local/bin/gitleaks /usr/local/bin/trufflehog /usr/local/bin/syft /usr/local/bin/grype /usr/local/bin/ffuf /usr/local/bin/semgrep
+      SHELLOCK_INSTALL_MODERN_TOOLS
+      chmod 0755 /usr/local/sbin/shellock-install-modern-tools
+      /usr/local/sbin/shellock-install-modern-tools

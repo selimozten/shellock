@@ -1,0 +1,14 @@
+config:
+  limits.cpu: "6"
+  limits.memory: 12GiB
+description: Advanced network assessment profile
+devices:
+  eth0:
+    name: eth0
+    network: incusbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+name: net-advanced
