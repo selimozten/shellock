@@ -57,20 +57,20 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   await harness.handlers.get("session_start")[0]({ type: "session_start", reason: "startup" }, createCommandContext(root, harness, { mode: "tui" }));
 
-  assert.match(harness.statuses.get("shellock"), /shellock:pack local bash/);
+  assert.equal(harness.statuses.get("shellock"), "shellock:pack");
   assert.match(harness.titles.at(-1), /Shellock - .* - pack/);
   assert.equal(harness.hiddenThinkingLabels.at(-1), "reasoning hidden");
   assert.equal(harness.workingMessages.at(-1), "Shellock is thinking");
   assert.equal(harness.headers.length, 1);
   assert.equal(harness.footers.length, 0);
-  assert.equal(harness.editorComponents.length, 1);
+  assert.equal(harness.editorComponents.length, 0);
   assert.equal(harness.notifications.length, 0);
 
   const header = harness.headers[0](undefined, createTheme()).render(120);
   assert.match(header.join("\n"), /Shellock v0\.1\.0/);
-  assert.match(header.join("\n"), /SHELLOCK/);
+  assert.match(header.join("\n"), /Shellock/);
   assert.match(header.join("\n"), /Start: \/shellock-init <authorized mission>/);
-  assert.match(header.join("\n"), /Tool contract/);
+  assert.match(header.join("\n"), /Tools/);
   assert.match(header.join("\n"), /read\/grep\/find\/ls/);
   assert.match(header.join("\n"), /avoid Python just to print specific file lines/);
   assert.ok(header.every((line) => visibleWidth(line) <= 120));

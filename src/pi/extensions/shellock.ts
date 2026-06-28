@@ -2,10 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionContext, KeybindingsManager } from "@earendil-works/pi-coding-agent";
-import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildAssessmentPrompt } from "../../agent/prompt-pack.js";
 import { formatDoctorReport, runDoctor } from "../../doctor/doctor.js";
 import { generateReport } from "../../report/report.js";
@@ -23,11 +21,11 @@ import { initializeWorkspace, readMissionWorkspace, workspacePaths } from "../..
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
 const SHELLOCK_ASCII = [
-  "  ____  _          _ _            _    ",
-  " / ___|| |__   ___| | | ___   ___| | __",
-  " \\___ \\| '_ \\ / _ \\ | |/ _ \\ / __| |/ /",
-  "  ___) | | | |  __/ | | (_) | (__|   < ",
-  " |____/|_| |_|\\___|_|_|\\___/ \\___|_|\\_\\",
+  "      .--------.",
+  "     /  .--.   \\",
+  "     |  |  |   |",
+  "     |  '--'   |",
+  "     '---------'",
 ];
 
 export default function shellockExtension(pi: ExtensionAPI) {
@@ -189,7 +187,6 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
   ctx.ui.setTitle(`Shellock - ${basename(ctx.cwd)} - ${status.hasMission ? "case" : "pack"}`);
   ctx.ui.setHiddenThinkingLabel("reasoning hidden");
   ctx.ui.setWorkingMessage(status.hasMission ? "Shellock is working the case" : "Shellock is thinking");
-  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings, ctx, status));
   ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, status, PACKAGE_VERSION, theme));
 }
 
@@ -261,7 +258,8 @@ class ShellockHeader {
     const theme = this.theme;
     return [
       "",
-      centerText(theme.bold(theme.fg("accent", "SHELLOCK")), width),
+      centerText(theme.bold(theme.fg("accent", "Shellock")), width),
+      centerText(theme.fg("muted", "security research harness"), width),
       "",
       ...SHELLOCK_ASCII.map(line => centerText(theme.fg("muted", line), width)),
       "",
@@ -279,7 +277,7 @@ class ShellockHeader {
       this.statusLine(),
       this.recordLine(),
       separatorText(width, theme),
-      theme.bold(theme.fg("accent", "Tool contract")),
+      theme.bold(theme.fg("accent", "Tools")),
       "read/grep/find/ls: inspect files and locate text",
       "edit/write: change files through Pi tools",
       "bash: tests, scanners, package managers, runtime ops",
@@ -291,28 +289,28 @@ class ShellockHeader {
     const theme = this.theme;
     const innerWidth = width - 2;
     const title = ` Shellock v${this.version} `;
-    const prefix = "---";
+    const prefix = "--";
     const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title));
-    return `${theme.fg("borderMuted", "+")}${theme.fg("borderMuted", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("borderMuted", "-".repeat(fillWidth))}${theme.fg("borderMuted", "+")}`;
+    return `${theme.fg("accent", "+")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", "-".repeat(fillWidth))}${theme.fg("accent", "+")}`;
   }
 
   private bottomBorder(width: number): string {
-    return this.theme.fg("borderMuted", `+${"-".repeat(Math.max(0, width - 2))}+`);
+    return this.theme.fg("accent", `+${"-".repeat(Math.max(0, width - 2))}+`);
   }
 
   private splitRow(left: string, leftWidth: number, right: string, rightWidth: number): string {
     const theme = this.theme;
     return [
-      theme.fg("borderMuted", "|"),
+      theme.fg("accent", "|"),
       fitText(left, leftWidth),
       theme.fg("borderMuted", "|"),
       fitText(right, rightWidth),
-      theme.fg("borderMuted", "|"),
+      theme.fg("accent", "|"),
     ].join("");
   }
 
   private row(content: string, width: number): string {
-    return `${this.theme.fg("borderMuted", "|")}${fitText(content, width)}${this.theme.fg("borderMuted", "|")}`;
+    return `${this.theme.fg("accent", "|")}${fitText(content, width)}${this.theme.fg("accent", "|")}`;
   }
 
   private primaryAction(): string {
@@ -343,51 +341,6 @@ class ShellockHeader {
     const window = usage?.contextWindow ?? this.ctx.model?.contextWindow;
     return `Context: ${window ? formatTokenWindow(window) : "unknown"}`;
   }
-}
-
-class ShellockEditor extends CustomEditor {
-  constructor(
-    tui: TUI,
-    theme: EditorTheme,
-    keybindings: KeybindingsManager,
-    private readonly ctx: ExtensionContext,
-    private readonly status: CaseFileStatus,
-  ) {
-    super(tui, theme, keybindings, { paddingX: 0 });
-  }
-
-  override render(width: number): string[] {
-    const lines = super.render(width);
-    if (lines.length < 2) return lines;
-
-    const theme = this.ctx.ui.theme;
-    const mode = this.status.hasMission ? "case" : "pack";
-    const topLeft = theme.fg("accent", " shellock ");
-    const topRight = theme.fg(this.status.hasMission ? "success" : "warning", ` ${mode} `);
-
-    lines[0] = fitBorderLine(topLeft, topRight, width, text => this.borderColor(text));
-    return lines;
-  }
-}
-
-function fitBorderLine(left: string, right: string, width: number, border: (text: string) => string): string {
-  if (width <= 0) return "";
-  if (width === 1) return border("-");
-
-  let leftText = left;
-  let rightText = right;
-  const fixedWidth = 2;
-  const minimumGap = 1;
-
-  while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(rightText) > 0) {
-    rightText = truncateToWidth(rightText, Math.max(0, visibleWidth(rightText) - 1), "");
-  }
-  while (fixedWidth + visibleWidth(leftText) + visibleWidth(rightText) + minimumGap > width && visibleWidth(leftText) > 0) {
-    leftText = truncateToWidth(leftText, Math.max(0, visibleWidth(leftText) - 1), "");
-  }
-
-  const fillWidth = Math.max(0, width - fixedWidth - visibleWidth(leftText) - visibleWidth(rightText));
-  return `${border("-")}${leftText}${border("-".repeat(fillWidth))}${rightText}${border("-")}`;
 }
 
 function fitText(text: string, width: number): string {
@@ -428,9 +381,9 @@ function readPackageVersion(): string {
 }
 
 function shellockStatusText(status: CaseFileStatus): string {
-  if (!status.hasMission) return `shellock:pack ${shortRuntimeStatus()}`;
+  if (!status.hasMission) return "shellock:pack";
 
-  return `shellock:case h${status.hypothesisCount} f${status.findingCount} r${status.runCount} ${shortRuntimeStatus()}`;
+  return `shellock:case h${status.hypothesisCount} f${status.findingCount} r${status.runCount}`;
 }
 
 function shortRuntimeStatus(): string {
