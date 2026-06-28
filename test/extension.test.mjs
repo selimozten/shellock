@@ -58,10 +58,10 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   assert.match(harness.statuses.get("shellock"), /shellock:pack local bash/);
   assert.match(harness.titles.at(-1), /Shellock - .* - pack/);
-  assert.equal(harness.hiddenThinkingLabels.at(-1), "operator notes");
+  assert.equal(harness.hiddenThinkingLabels.at(-1), "reasoning hidden");
   assert.equal(harness.workingMessages.at(-1), "Shellock is thinking");
   assert.equal(harness.headers.length, 1);
-  assert.equal(harness.footers.length, 1);
+  assert.equal(harness.footers.length, 0);
   assert.equal(harness.editorComponents.length, 1);
   assert.equal(harness.notifications.length, 0);
 
@@ -73,17 +73,6 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   ]);
   assert.ok(header.every((line) => line.length <= 80));
   assert.ok(header.every((line) => !/^-+$/.test(line)));
-
-  const footer = harness.footers[0](createTui(), createTheme(), createFooterData("main"));
-  const footerLines = footer.render(120);
-  assert.equal(footerLines.length, 2);
-  assert.match(footerLines[0], /shellock-ext-/);
-  assert.match(footerLines[0], /\(main\)/);
-  assert.match(footerLines[0], /test-provider\/test-model/);
-  assert.match(footerLines[0], /ctx 1\.2%\/1\.0M/);
-  assert.match(footerLines[1], /case none/);
-  assert.match(footerLines[1], /local bash/);
-  assert.ok(footerLines.every((line) => line.length <= 120));
 });
 
 function createExtensionHarness() {
@@ -170,21 +159,6 @@ function createCommandContext(cwd, harness, options = {}) {
       },
       theme: createTheme(),
     },
-  };
-}
-
-function createTui() {
-  return {
-    requestRender() {},
-  };
-}
-
-function createFooterData(branch) {
-  return {
-    getGitBranch: () => branch,
-    getExtensionStatuses: () => new Map(),
-    getAvailableProviderCount: () => 1,
-    onBranchChange: () => () => {},
   };
 }
 
