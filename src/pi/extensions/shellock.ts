@@ -20,12 +20,20 @@ import { initializeWorkspace, readMissionWorkspace, workspacePaths } from "../..
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
+const HEADER_MAX_WIDTH = 132;
+const SHELLOCK_MARK = "SHELLOCK//OPS";
 const SHELLOCK_WORDMARK = [
   "       __       ____         __  ",
   "  ___ / /  ___ / / /__  ____/ /__",
   " (_-</ _ \\/ -_) / / _ \\/ __/  '_/",
   "/___/_//_/\\__/_/_/\\___/\\__/_/\\_\\ ",
 ];
+const TOOL_CONTRACT = [
+  ["read/grep/find/ls", "inspect files and locate text"],
+  ["edit/write", "change files through Pi tools"],
+  ["bash", "tests, scanners, package managers, runtime ops"],
+  ["rule", "avoid Python just to print specific file lines"],
+] as const;
 
 export default function shellockExtension(pi: ExtensionAPI) {
   const activeRuns = new Map<string, ShellockRun>();
@@ -186,6 +194,15 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
   ctx.ui.setTitle(`Shellock - ${basename(ctx.cwd)} - ${status.hasMission ? "case" : "pack"}`);
   ctx.ui.setHiddenThinkingLabel("reasoning hidden");
   ctx.ui.setWorkingMessage(status.hasMission ? "Shellock is working the case" : "Shellock is thinking");
+  ctx.ui.setWorkingIndicator({
+    frames: [
+      ctx.ui.theme.fg("dim", "◌"),
+      ctx.ui.theme.fg("muted", "◍"),
+      ctx.ui.theme.fg("accent", "●"),
+      ctx.ui.theme.fg("muted", "◍"),
+    ],
+    intervalMs: 120,
+  });
   ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, status, PACKAGE_VERSION, theme));
 }
 
@@ -202,11 +219,11 @@ class ShellockHeader {
   render(width: number): string[] {
     if (width < 72) return this.renderCompact(width);
 
-    const boxWidth = Math.max(72, width);
+    const boxWidth = Math.min(width, HEADER_MAX_WIDTH);
     const innerWidth = boxWidth - 2;
     if (innerWidth < 94) return this.renderSingleColumn(boxWidth);
 
-    const leftWidth = Math.min(44, Math.max(34, Math.floor(innerWidth * 0.34)));
+    const leftWidth = Math.min(42, Math.max(38, Math.floor(innerWidth * 0.34)));
     const rightWidth = innerWidth - leftWidth - 1;
     const leftRows = this.leftPanel(leftWidth);
     const rightRows = this.rightPanel(rightWidth);
@@ -223,10 +240,9 @@ class ShellockHeader {
 
   private renderCompact(width: number): string[] {
     const theme = this.theme;
-    const caseText = this.status.hasMission ? "case ready" : "case none";
     return [
-      fitText(`${theme.bold(theme.fg("accent", "shellock"))} ${theme.fg("muted", `v${this.version}`)}`, width),
-      fitText(`${theme.fg("warning", caseText)}  ${theme.fg("muted", shortRuntimeStatus())}`, width),
+      fitText(`${theme.bold(theme.fg("accent", SHELLOCK_MARK))} ${theme.fg("muted", `v${this.version}`)}`, width),
+      fitText(`${this.caseState()}  ${theme.fg("dim", "runtime")} ${theme.fg("muted", shortRuntimeStatus())}`, width),
       fitText(theme.fg("dim", this.primaryAction()), width),
     ];
   }
@@ -234,63 +250,57 @@ class ShellockHeader {
   private renderSingleColumn(boxWidth: number): string[] {
     const innerWidth = boxWidth - 2;
     const rows = [
-      this.theme.bold(this.theme.fg("accent", "SHELLOCK")),
-      this.statusLine(),
-      this.modelLine(),
-      compactCwd(this.ctx.cwd),
+      this.brandLine(),
+      this.keyValueLine("state", stripAnsi(this.caseState()), innerWidth),
+      this.keyValueLine("runtime", shortRuntimeStatus(), innerWidth),
+      this.keyValueLine("workspace", compactCwd(this.ctx.cwd), innerWidth),
       separatorText(innerWidth, this.theme),
-      this.theme.bold(this.theme.fg("accent", "Mission")),
-      this.primaryAction(),
+      this.sectionTitle("Mission Control"),
+      this.theme.fg("muted", this.primaryAction()),
       this.recordLine(),
       separatorText(innerWidth, this.theme),
-      this.theme.bold(this.theme.fg("accent", "Tools")),
-      "read/grep/find/ls inspect files and locate text",
-      "edit/write change files through Pi tools",
-      "bash runs tests, scanners, package managers, runtime ops",
-      "avoid Python just to print specific file lines",
+      this.sectionTitle("Tool Contract"),
+      ...TOOL_CONTRACT.map(([label, detail]) => this.toolLine(label, detail)),
     ];
 
-    return [this.topBorder(boxWidth), ...rows.map(row => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
+    return [this.topBorder(boxWidth), ...rows.map((row) => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
   }
 
   private leftPanel(width: number): string[] {
     const theme = this.theme;
     return [
+      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.bold(theme.fg("accent", line)), width)),
+      centerText(theme.fg("muted", "authorized security workspace"), width),
+      centerText(this.caseState(), width),
+      centerText(this.metricsLine(), width),
       "",
-      ...SHELLOCK_WORDMARK.map(line => centerText(theme.bold(theme.fg("accent", line)), width)),
-      "",
-      centerText(theme.fg("muted", "security research harness"), width),
-      centerText(theme.fg(this.status.hasMission ? "accent" : "warning", this.status.hasMission ? "case ready" : "awaiting authorization"), width),
-      "",
-      centerText(theme.fg("muted", this.modelLine().replace(/^Model: /, "")), width),
-      centerText(theme.fg("muted", this.contextLine().replace(/^Context: /, "")), width),
-      centerText(theme.fg("muted", compactCwd(this.ctx.cwd)), width),
+      this.keyValueLine("model", this.modelValue(), width),
+      this.keyValueLine("context", this.contextValue(), width),
+      this.keyValueLine("cwd", compactCwd(this.ctx.cwd), width),
     ];
   }
 
   private rightPanel(width: number): string[] {
-    const theme = this.theme;
     return [
-      theme.bold(theme.fg("accent", "Mission")),
-      this.primaryAction(),
-      this.statusLine(),
+      this.sectionTitle("Mission Control"),
+      this.theme.fg("muted", this.primaryAction()),
+      this.keyValueLine("state", stripAnsi(this.caseState()), width),
+      this.keyValueLine("runtime", shortRuntimeStatus(), width),
       this.recordLine(),
-      separatorText(width, theme),
-      theme.bold(theme.fg("accent", "Tools")),
-      "read/grep/find/ls: inspect files and locate text",
-      "edit/write: change files through Pi tools",
-      "bash: tests, scanners, package managers, runtime ops",
-      "avoid Python just to print specific file lines",
+      separatorText(width, this.theme),
+      this.sectionTitle("Tool Contract"),
+      ...TOOL_CONTRACT.map(([label, detail]) => this.toolLine(label, detail)),
     ];
   }
 
   private topBorder(width: number): string {
     const theme = this.theme;
     const innerWidth = width - 2;
-    const title = ` Shellock v${this.version} `;
-    const prefix = "══";
-    const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title));
-    return `${theme.fg("accent", "╔")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", "═".repeat(fillWidth))}${theme.fg("accent", "╗")}`;
+    const title = ` ${SHELLOCK_MARK} v${this.version} `;
+    const prefix = "═╡";
+    const suffix = "╞";
+    const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title) - visibleWidth(suffix));
+    return `${theme.fg("accent", "╔")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", suffix)}${theme.fg("borderMuted", "═".repeat(fillWidth))}${theme.fg("accent", "╗")}`;
   }
 
   private bottomBorder(width: number): string {
@@ -302,7 +312,7 @@ class ShellockHeader {
     return [
       theme.fg("accent", "║"),
       fitText(left, leftWidth),
-      theme.fg("borderMuted", "║"),
+      theme.fg("borderMuted", "│"),
       fitText(right, rightWidth),
       theme.fg("accent", "║"),
     ].join("");
@@ -312,33 +322,60 @@ class ShellockHeader {
     return `${this.theme.fg("accent", "║")}${fitText(content, width)}${this.theme.fg("accent", "║")}`;
   }
 
+  private brandLine(): string {
+    return `${this.theme.fg("borderMuted", "◢")} ${this.theme.bold(this.theme.fg("accent", SHELLOCK_MARK))} ${this.theme.fg("borderMuted", "◤")}`;
+  }
+
+  private sectionTitle(title: string): string {
+    return `${this.theme.fg("borderMuted", "▸")} ${this.theme.bold(this.theme.fg("accent", title))}`;
+  }
+
+  private keyValueLine(label: string, value: string, width: number): string {
+    const labelWidth = Math.min(9, Math.max(5, Math.floor(width * 0.22)));
+    const key = label.toUpperCase().padEnd(labelWidth, " ");
+    return `${this.theme.fg("dim", key)} ${this.theme.fg("muted", value)}`;
+  }
+
+  private toolLine(label: string, detail: string): string {
+    return `${this.theme.fg("accent", "◆")} ${this.theme.bold(label.padEnd(18, " "))} ${this.theme.fg("muted", detail)}`;
+  }
+
   private primaryAction(): string {
     return this.status.hasMission
       ? "Next: /shellock-status or /shellock <task>"
       : "Start: /shellock-init <authorized mission>";
   }
 
-  private statusLine(): string {
-    const caseText = this.status.hasMission ? "case ready" : "case none";
-    return `${caseText}  runtime ${shortRuntimeStatus()}`;
+  private caseState(): string {
+    return this.status.hasMission
+      ? `${this.theme.fg("success", "●")} ${this.theme.fg("success", "case ready")}`
+      : `${this.theme.fg("warning", "●")} ${this.theme.fg("warning", "awaiting authorization")}`;
+  }
+
+  private metricsLine(): string {
+    return [
+      `${this.theme.fg("dim", "HYP")} ${this.theme.fg("accent", String(this.status.hypothesisCount))}`,
+      `${this.theme.fg("dim", "FIND")} ${this.theme.fg("accent", String(this.status.findingCount))}`,
+      `${this.theme.fg("dim", "RUN")} ${this.theme.fg("accent", String(this.status.runCount))}`,
+    ].join(this.theme.fg("borderMuted", "  ·  "));
   }
 
   private recordLine(): string {
-    if (!this.status.hasMission) return "Record: awaiting authorized mission";
-    return `Record: h${this.status.hypothesisCount} f${this.status.findingCount} r${this.status.runCount}`;
+    if (!this.status.hasMission) return this.theme.fg("muted", "Record: awaiting authorized mission");
+    return `${this.theme.fg("dim", "Record:")} ${this.metricsLine()}`;
   }
 
-  private modelLine(): string {
+  private modelValue(): string {
     const model = this.ctx.model;
-    if (!model) return "Model: not selected";
+    if (!model) return "not selected";
     const name = model.name ?? model.id;
-    return `Model: ${model.provider}/${name}`;
+    return `${model.provider}/${name}`;
   }
 
-  private contextLine(): string {
+  private contextValue(): string {
     const usage = this.ctx.getContextUsage();
     const window = usage?.contextWindow ?? this.ctx.model?.contextWindow;
-    return `Context: ${window ? formatTokenWindow(window) : "unknown"}`;
+    return window ? formatTokenWindow(window) : "unknown";
   }
 }
 
@@ -353,6 +390,10 @@ function centerText(text: string, width: number): string {
   const clipped = visibleWidth(text) > width ? truncateToWidth(text, width, "") : text;
   const left = Math.floor(Math.max(0, width - visibleWidth(clipped)) / 2);
   return `${" ".repeat(left)}${clipped}${" ".repeat(Math.max(0, width - left - visibleWidth(clipped)))}`;
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 function separatorText(width: number, theme: ExtensionContext["ui"]["theme"]): string {

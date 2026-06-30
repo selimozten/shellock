@@ -61,6 +61,7 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.match(harness.titles.at(-1), /Shellock - .* - pack/);
   assert.equal(harness.hiddenThinkingLabels.at(-1), "reasoning hidden");
   assert.equal(harness.workingMessages.at(-1), "Shellock is thinking");
+  assert.deepEqual(harness.workingIndicators.at(-1), { frames: ["◌", "◍", "●", "◍"], intervalMs: 120 });
   assert.equal(harness.headers.length, 1);
   assert.equal(harness.footers.length, 0);
   assert.equal(harness.editorComponents.length, 0);
@@ -68,21 +69,28 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   const header = harness.headers[0](undefined, createTheme()).render(120);
   const headerText = header.join("\n");
-  assert.ok(header[0].startsWith("╔══ Shellock v0.1.0"));
+  assert.ok(header[0].startsWith("╔═╡ SHELLOCK//OPS v0.1.0 ╞"));
   assert.ok(header[0].endsWith("╗"));
   assert.ok(header.at(-1).startsWith("╚"));
   assert.ok(header.at(-1).endsWith("╝"));
   assert.ok(header.some((line) => line.startsWith("║") && line.endsWith("║")));
-  assert.match(headerText, /shellock/);
+  assert.match(headerText, /SHELLOCK\/\/OPS/);
   assert.match(headerText, /___ \/ \/  ___ \/ \/ \/__/);
-  assert.match(headerText, /security research harness/);
+  assert.match(headerText, /authorized security workspace/);
   assert.match(headerText, /awaiting authorization/);
   assert.doesNotMatch(headerText, /\.--------\./);
-  assert.match(header.join("\n"), /Start: \/shellock-init <authorized mission>/);
-  assert.match(header.join("\n"), /Tools/);
-  assert.match(header.join("\n"), /read\/grep\/find\/ls/);
-  assert.match(header.join("\n"), /avoid Python just to print specific file lines/);
+  assert.match(headerText, /Mission Control/);
+  assert.match(headerText, /Tool Contract/);
+  assert.match(headerText, /Start: \/shellock-init <authorized mission>/);
+  assert.match(headerText, /read\/grep\/find\/ls/);
+  assert.match(headerText, /avoid Python just to print specific file lines/);
   assert.ok(header.every((line) => visibleWidth(line) <= 120));
+
+  const compactHeader = harness.headers[0](undefined, createTheme()).render(68);
+  assert.ok(compactHeader.every((line) => visibleWidth(line) <= 68));
+
+  const wideHeader = harness.headers[0](undefined, createTheme()).render(220);
+  assert.ok(wideHeader.every((line) => visibleWidth(line) <= 132));
 });
 
 function createExtensionHarness() {
@@ -97,6 +105,7 @@ function createExtensionHarness() {
   const headers = [];
   const footers = [];
   const editorComponents = [];
+  const workingIndicators = [];
   const pi = {
     on(event, handler) {
       const list = handlers.get(event) ?? [];
@@ -123,6 +132,7 @@ function createExtensionHarness() {
     headers,
     footers,
     editorComponents,
+    workingIndicators,
     pi,
   };
 }
@@ -157,6 +167,9 @@ function createCommandContext(cwd, harness, options = {}) {
       },
       setWorkingMessage(message) {
         harness.workingMessages.push(message);
+      },
+      setWorkingIndicator(indicator) {
+        harness.workingIndicators.push(indicator);
       },
       setHeader(factory) {
         harness.headers.push(factory);
