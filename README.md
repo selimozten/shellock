@@ -79,7 +79,7 @@ Shellock does not pin a paid provider or silently copy Pi credentials. Resumed s
 
 Skills are loaded from `resources/skills/` and surfaced through Pi's native skill discovery. They describe specialized workflows while leaving tool choice and execution to the model.
 
-Current skill areas include focused security assessment and Incus runtime operation. Ask Shellock for the task directly; explicit slash commands are not required to activate a relevant skill.
+Current skills include repository-wide security scanning, focused security assessment, and Incus runtime operation. Ask Shellock for the task directly; explicit slash commands are not required to activate a relevant skill.
 
 ## Incus Runtime
 
