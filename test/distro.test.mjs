@@ -83,7 +83,7 @@ test("normal shellock startup creates settings without reading or copying Pi con
   const shellockModels = await readOptional(join(shellockAgentDir, "models.json"));
   assert.equal(shellockSettings.defaultProvider, undefined);
   assert.equal(shellockSettings.defaultModel, undefined);
-  assert.equal(shellockSettings.shellockConfigVersion, 1);
+  assert.equal(shellockSettings.shellockConfigVersion, 2);
   assert.equal(shellockSettings.defaultThinkingLevel, "high");
   assert.deepEqual(shellockSettings.packages, []);
   assert.equal(shellockSettings.theme, "shellock-light/shellock-dark");
@@ -128,7 +128,7 @@ test("shellock removes only package state inherited by the legacy Pi config copy
 
   assert.equal(result.status, 0, result.stderr);
   const shellockSettings = JSON.parse(await readFile(join(shellockAgentDir, "settings.json"), "utf8"));
-  assert.equal(shellockSettings.shellockConfigVersion, 1);
+  assert.equal(shellockSettings.shellockConfigVersion, 2);
   assert.deepEqual(shellockSettings.packages, []);
   assert.equal(shellockSettings.enableInstallTelemetry, false);
 });
@@ -157,8 +157,55 @@ test("shellock preserves user-managed packages during config migration", async (
 
   assert.equal(result.status, 0, result.stderr);
   const shellockSettings = JSON.parse(await readFile(join(shellockAgentDir, "settings.json"), "utf8"));
-  assert.equal(shellockSettings.shellockConfigVersion, 1);
+  assert.equal(shellockSettings.shellockConfigVersion, 2);
   assert.deepEqual(shellockSettings.packages, ["npm:pi-mcp-adapter", "npm:user-package"]);
+});
+
+test("shellock migrates Bedrock GPT models to the Mantle provider", async () => {
+  const piAgentDir = await mkdtemp(join(tmpdir(), "pi-agent-"));
+  const shellockAgentDir = await mkdtemp(join(tmpdir(), "shellock-agent-"));
+  const cli = resolve("dist/distro/cli.js");
+
+  await mkdir(shellockAgentDir, { recursive: true });
+  writeFileSync(
+    join(shellockAgentDir, "settings.json"),
+    JSON.stringify(
+      {
+        shellockConfigVersion: 1,
+        defaultProvider: "amazon-bedrock",
+        defaultModel: "openai.gpt-5.5",
+        enabledModels: [
+          "amazon-bedrock/openai.gpt-5.4",
+          "amazon-bedrock/openai.gpt-5.5",
+          "amazon-bedrock/anthropic.claude-opus-4-6-v1",
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const result = spawnSync(process.execPath, [cli, "--offline", "--list-models"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PI_CODING_AGENT_DIR: piAgentDir,
+      SHELLOCK_CODING_AGENT_DIR: shellockAgentDir,
+      PI_OFFLINE: "1",
+    },
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const shellockSettings = JSON.parse(await readFile(join(shellockAgentDir, "settings.json"), "utf8"));
+  assert.equal(shellockSettings.shellockConfigVersion, 2);
+  assert.equal(shellockSettings.defaultProvider, "amazon-bedrock-mantle");
+  assert.equal(shellockSettings.defaultModel, "openai.gpt-5.5");
+  assert.deepEqual(shellockSettings.enabledModels, [
+    "amazon-bedrock-mantle/openai.gpt-5.4",
+    "amazon-bedrock-mantle/openai.gpt-5.5",
+    "amazon-bedrock/anthropic.claude-opus-4-6-v1",
+  ]);
 });
 
 test("shellock migrates shellock-forced default model filters", async () => {

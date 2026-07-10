@@ -73,6 +73,8 @@ Use Pi's normal provider paths:
 - `--model provider/model` for one run
 - provider environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `TOGETHER_API_KEY`
 
+Amazon Bedrock GPT-5.4 and GPT-5.5 use AWS's OpenAI-compatible Mantle API. Set `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION`, then select `amazon-bedrock-mantle/openai.gpt-5.5`. Shellock keeps the normal `amazon-bedrock` provider intact for Claude, Nova, and other Bedrock models.
+
 Shellock does not pin a paid provider or silently copy Pi credentials. Resumed sessions may retain their session-local model until changed.
 
 ## Skills

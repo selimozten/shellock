@@ -92,6 +92,7 @@ function assertPackedSurface(packed) {
     "dist/pi-core/dist/main.js",
     "dist/pi-core/package.json",
     "dist/pi/extensions/shellock.js",
+    "dist/pi/extensions/bedrock-mantle.js",
     "dist/pi/extensions/incus-bash.js",
     "resources/skills/repository-security-scan/SKILL.md",
     "resources/skills/security-assessment/SKILL.md",
