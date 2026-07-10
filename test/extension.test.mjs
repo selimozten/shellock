@@ -1,51 +1,10 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import shellockExtension from "../dist/pi/extensions/shellock.js";
-
-test("/shellock refuses mission work before a case file exists", async () => {
-  const root = await mkdtemp(join(tmpdir(), "shellock-ext-"));
-  const harness = createExtensionHarness();
-  shellockExtension(harness.pi);
-
-  await harness.commands.get("shellock").handler("continue", createCommandContext(root, harness));
-
-  assert.deepEqual(harness.sentMessages, []);
-  assert.match(harness.notifications.at(-1).message, /No MISSION\.md found/);
-});
-
-test("/shellock sends continuation through Pi's normal user-message path", async () => {
-  const root = await mkdtemp(join(tmpdir(), "shellock-ext-"));
-  await writeFile(join(root, "MISSION.md"), "# Mission\n\nAssess an authorized lab target.\n", "utf8");
-
-  const harness = createExtensionHarness();
-  shellockExtension(harness.pi);
-
-  await harness.commands.get("shellock").handler("check exposed admin paths", createCommandContext(root, harness));
-
-  assert.equal(harness.sentMessages.length, 1);
-  assert.match(harness.sentMessages[0].content, /Continue Shellock mission work/);
-  assert.match(harness.sentMessages[0].content, /check exposed admin paths/);
-  assert.match(harness.sentMessages[0].content, /MISSION\.md, STATE\.md, SURFACE\.md, COVERAGE\.md, and THREAT_MODEL\.md/);
-  await assert.doesNotReject(access(join(root, "evidence", "runs")));
-});
-
-test("/shellock queues a follow-up through Pi when the agent is busy", async () => {
-  const root = await mkdtemp(join(tmpdir(), "shellock-ext-"));
-  await writeFile(join(root, "MISSION.md"), "# Mission\n\nAssess an authorized lab target.\n", "utf8");
-
-  const harness = createExtensionHarness();
-  shellockExtension(harness.pi);
-
-  await harness.commands.get("shellock").handler("", createCommandContext(root, harness, { idle: false }));
-
-  assert.equal(harness.sentMessages.length, 1);
-  assert.equal(harness.sentMessages[0].options?.deliverAs, "followUp");
-  assert.match(harness.notifications.at(-1).message, /queued/);
-});
 
 test("shellock exposes terminal chrome through Pi hooks without duplicate theme resources", async () => {
   const root = await mkdtemp(join(tmpdir(), "shellock-ext-"));
@@ -55,11 +14,12 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   const resources = await harness.handlers.get("resources_discover")[0]({ type: "resources_discover", cwd: root, reason: "startup" }, createCommandContext(root, harness));
   assert.deepEqual(resources.themePaths, undefined);
   assert.match(resources.skillPaths[0], /resources\/skills$/);
-  assert.match(resources.promptPaths[0], /resources\/prompts$/);
+  assert.equal(resources.promptPaths, undefined);
+  assert.deepEqual([...harness.commands.keys()].sort(), ["shellock-doctor", "shellock-runtime"]);
 
   await harness.handlers.get("session_start")[0]({ type: "session_start", reason: "startup" }, createCommandContext(root, harness, { mode: "tui" }));
 
-  assert.equal(harness.statuses.get("shellock"), "shellock:pack");
+  assert.equal(harness.statuses.get("shellock"), "shellock · local bash");
   assert.match(harness.titles.at(-1), / - shellock$/);
   assert.equal(harness.hiddenThinkingLabels.at(-1), "reasoning");
   assert.equal(harness.workingMessages.at(-1), "reasoning");
@@ -79,10 +39,9 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.ok(header.some((line) => line.trimStart().startsWith("║") && line.endsWith("║")));
   assert.match(headerText, /___ \/ \/  ___ \/ \/ \/__/);
   assert.match(headerText, /security research harness/);
-  assert.match(headerText, /no active case/);
-  assert.match(headerText, /Mission/);
-  assert.match(headerText, /\/shellock-init <authorized mission>/);
-  assert.doesNotMatch(headerText, /Tool Contract|Mission Control|authorized security workspace|read  edit  write  bash/);
+  assert.match(headerText, /Ready/);
+  assert.match(headerText, /local bash/);
+  assert.doesNotMatch(headerText, /case|mission|shellock-init|Tool Contract|Mission Control/iu);
   assert.ok(header.every((line) => visibleWidth(line) <= 120));
 
   const footer = harness.footers[0](
@@ -95,7 +54,8 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   );
   const footerText = footer.render(120).join("\n");
   assert.match(footerText, /main/);
-  assert.match(footerText, /case none/);
+  assert.match(footerText, /local bash/);
+  assert.doesNotMatch(footerText, /case|mission/iu);
   assert.match(footerText, /12k \/ 1\.0M/);
   assert.match(footerText, /test-provider\/test-model/);
 

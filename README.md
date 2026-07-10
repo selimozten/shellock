@@ -1,59 +1,50 @@
 # Shellock
 
-Shellock is a Pi-family security operations agent harness. It follows the same distribution pattern as Pi packages/forks such as Oh My Pi: Pi remains the interactive terminal agent core and owns the chat loop, sessions, tools, approvals, subscriptions, API keys, model selection, and terminal experience. Shellock publishes as `@shellock/pi-coding-agent` and ships that core as its own `shellock` CLI with the security operator layer built in:
+Shellock is a Pi-family terminal agent harness for security research and engineering. It keeps Pi's interactive agent loop, model providers, subscriptions, sessions, approvals, and native tools, then adds:
 
-- red team, blue team, OPSEC, DevSecOps, penetration-testing, and security-research system prompt
-- Pi skills and prompt templates
-- markdown case-file workspace
-- finding and report helpers
-- doctor checks for config/runtime/tooling
-- optional Incus-backed bash runtime
+- security-oriented system guidance and discoverable skills
+- a curated Linux security-tool runtime
+- optional Incus system-container and VM isolation
+- runtime and environment diagnostics
+- restrained Shellock terminal branding
 
-No separate agent loop, web UI, SQLite evidence store, or MCP wrapper for every security tool.
+Shellock does not implement another agent loop, force a case-file workflow, require a fixed report schema, or wrap every CLI utility as an MCP tool.
 
 ## Product Shape
 
 ```text
-shellock interactive terminal
-  -> copied Shellock-branded Pi core
-  -> Shellock extension
-  -> security skills and prompt templates
-  -> optional Incus bash override
-  -> markdown case file in the current working directory
-  -> evidence artifacts and reports
+shellock terminal
+  -> pinned Pi coding-agent core
+  -> Shellock prompt and skills
+  -> native read / write / edit / bash tools
+  -> normal local or isolated CLI environment
+  -> optional Incus/LXC/VM runtime
 ```
 
-The core experience is still Pi's terminal agent. Shellock changes the product defaults, built-in behavior, runtime contract, and security methodology, not the agent loop.
+The model works from the user's request and the current workspace. Specialized repeatable procedures, such as repository-wide security scanning, belong in skills that the model can discover and load when relevant.
 
 ## Core Contract
 
-Shellock must stay close to Pi:
+- Pi owns the chat loop, tools, sessions, compaction, providers, subscriptions, API keys, model selection, and approvals.
+- Shellock ships a pinned Pi core and injects focused behavior through supported extension APIs.
+- The copied Pi distribution remains byte-for-byte identical to the pinned upstream package.
+- Shellock keeps its own `~/.shellock/agent` settings, credentials, models, packages, themes, and sessions.
+- Shellock never reads or writes `~/.pi/agent`.
+- Security programs remain ordinary terminal tools. The agent discovers and uses them through `bash` instead of needing one custom wrapper per program.
+- Skills provide deeper workflows without making every conversation follow the same process.
 
-- Pi owns model providers, subscriptions, API keys, `/login`, `/model`, sessions, approvals, and terminal interaction.
-- Shellock is a scoped Pi coding-agent distribution package, not a separate shell wrapper.
-- Shellock vendors a pinned Pi core during build and injects behavior through Pi extension factories.
-- The vendored Pi `dist/`, README, and changelog must remain byte-for-byte identical to upstream; only the copied package metadata is Shellock-branded.
-- Pi is a pinned runtime dependency, so an installed Shellock package brings the upstream Pi runtime it delegates to.
-- Shellock mirrors Pi's direct runtime dependencies and should not add unrelated runtime libraries around the core.
-- Shellock should not grow a second agent loop, separate provider layer, or custom model abstraction.
-- Security tools should live in the runtime image as normal CLI tools whenever possible.
-- Shellock's product surface is the security operator layer: prompts, skills, case-file discipline, finding quality gates, runtime profiles, and curated tool images.
-- Shellock may brand the terminal experience through launcher-seeded themes and Pi extension UI hooks: startup header, terminal title, status text, working labels, and Shellock commands.
+Run `npm run verify:pi-core` to verify this contract.
 
-Run `npm run verify:pi-core` to check that this contract has not drifted.
-`npm pack` and `npm publish` run `prepack`, which rebuilds Shellock and verifies the copied Pi core before producing an artifact.
-The pack verifier also checks that the tarball exposes the distribution surface only: compiled `dist/`, prompts, skills, images, profiles, scripts, README, and the single `shellock` binary.
+## Tool Model
 
-## Tool Use Contract
+Pi gives Shellock four durable primitives:
 
-Shellock tells the model to use Pi's native file tools first:
+- `read` for file inspection
+- `write` for creating or intentionally replacing files
+- `edit` for targeted changes
+- `bash` for commands, tests, package managers, scanners, debuggers, and runtime operations
 
-- `read` for file contents and specific regions
-- `grep`, `find`, and `ls` for locating files, symbols, strings, and paths
-- `edit` for targeted modifications and `write` for new or intentional whole-file replacement
-- `bash` for commands, tests, package managers, runtime operations, scanners, and security tools
-
-The prompt explicitly discourages Python, Node, `awk`, `sed`, or shell snippets just to print file lines when Pi's native tools can answer directly. Destructive file operations still go through terminal access and must have clear user intent, mission need, or safe-cleanup justification.
+The local machine or Shellock runtime supplies the broader toolset. The model can inspect installed commands, read tool help, use project manifests, load relevant skills, and select the tools appropriate to the task.
 
 ## Install Locally
 
@@ -61,181 +52,91 @@ The prompt explicitly discourages Python, Node, `awk`, `sed`, or shell snippets 
 npm install
 npm run build
 npm link
+shellock
 ```
 
-The eventual package install shape mirrors OMP-style Pi distributions:
+The eventual global install shape is:
 
 ```bash
 npm install -g @shellock/pi-coding-agent
 shellock
 ```
 
-The `shellock` CLI creates its own `~/.shellock/agent` config on first run. It neither reads nor writes `~/.pi/agent`, does not advertise itself as a Pi resource pack, and keeps sessions, settings, themes, credentials, models, and packages separate from Pi. Shellock seeds its bundled terminal themes into `~/.shellock/agent/themes`, uses the `shellock-light/shellock-dark` auto theme pair for fresh settings, and shows model reasoning when the selected provider exposes it. Existing explicit settings are not overwritten. Shellock should not silently pin a paid provider or model; model selection remains Pi's job through `/login`, `/model`, provider environment variables, and `--model`.
+`shellock --help` and `shellock --version` are side-effect free. A normal first run creates `~/.shellock/agent` with isolated settings and bundled themes.
 
 ## Models And Auth
 
-Shellock intentionally delegates model access to Pi. Use any Pi-supported path:
+Use Pi's normal provider paths:
 
-- Existing subscription login: run `/login` inside Shellock and select a provider supported by Pi, such as Claude Pro/Max or ChatGPT Plus/Pro/Codex where available.
-- API keys or tokens: set provider environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `TOGETHER_API_KEY`, or store keys through Pi's login/config flow.
-- Existing Pi setup: use it as a reference, but Shellock keeps its own auth store. This avoids silently duplicating sensitive credentials.
-- Together AI: use `/model` or `--model together/<model-id>` for any Together model that Pi currently lists. Shellock does not add custom model registry entries on top of Pi.
+- `/login` for supported subscriptions and provider authentication
+- `/model` or `Ctrl+L` to switch models
+- `--model provider/model` for one run
+- provider environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `TOGETHER_API_KEY`
 
-Use `/model` or `Ctrl+L` in the Shellock terminal to switch models. Use `--model provider/model` for a single run. A resumed Pi session may keep its session-local model until you switch it or start a fresh session.
+Shellock does not pin a paid provider or silently copy Pi credentials. Resumed sessions may retain their session-local model until changed.
 
-Then start Shellock from a mission workspace or target repo:
+## Skills
 
-```bash
-mkdir -p missions/lab-001
-cd missions/lab-001
-shellock
-```
+Skills are loaded from `resources/skills/` and surfaced through Pi's native skill discovery. They describe specialized workflows while leaving tool choice and execution to the model.
 
-Inside Shellock:
-
-```text
-/shellock-init Assess the authorized lab target and produce a reproducible report
-/shellock-status
-/shellock-doctor
-/shellock Continue the assessment from the case file
-```
-
-Shellock does not silently create a case file in every directory. In a fresh workspace it loads the Shellock pack and waits for an explicit mission. `/shellock-init <authorized mission>` creates `MISSION.md` and the supporting case-file structure. If `MISSION.md` already exists, Shellock may repair missing supporting files without overwriting existing content.
-
-To override the model for a run:
-
-```bash
-shellock --model together/zai-org/GLM-5.1
-```
-
-## Case File
-
-The current Shellock working directory is the durable context store:
-
-```text
-MISSION.md
-STATE.md
-SURFACE.md
-COVERAGE.md
-THREAT_MODEL.md
-COMMANDS.md
-hypotheses/
-findings/
-evidence/
-evidence/runs/
-reports/
-scratch/
-```
-
-Raw command output belongs under `evidence/`. Shellock records agent bash runs under `evidence/runs/RUN-*` with a manifest and output preview. Durable claims go into markdown files with links back to evidence.
-
-## Safe Runtime Guidance
-
-Choose the runtime based on risk:
-
-- Best default: disposable Incus/LXC system container with the mission workspace mounted at `/workspace`.
-- Higher isolation: Incus VM or another VM with the same workspace contract.
-- Lab fallback: a spare laptop or old machine with no personal accounts, secrets, browser profile, or production access.
-- Local mode: acceptable for code review and low-risk local analysis, but not for untrusted binaries, malware, exploit execution, or intrusive network testing.
-
-For model assessment work, record refusal/over-refusal, tool-use quality, false positives, evidence discipline, and whether the model can stay inside the authorized scope.
-
-## Finding Quality
-
-Shellock treats scanner output and suspicious observations as leads, not finished findings. Finding files move through `lead`, `candidate`, `validated`, `rejected`, and `reported`.
-
-`/shellock-report` includes only `validated` or `reported` findings that pass the evidence gate: specific affected assets, direct evidence links, repeatable reproduction, demonstrated impact, confidence, and actionable remediation. Leads and candidates remain visible in the report as non-reportable blocked work.
+Current skill areas include focused security assessment and Incus runtime operation. Ask Shellock for the task directly; explicit slash commands are not required to activate a relevant skill.
 
 ## Incus Runtime
 
-If these variables are set before starting Shellock, the Incus extension replaces the normal `bash` tool with a runtime-backed shell:
+Shellock can replace Pi's local `bash` execution with a disposable Incus system container or VM while keeping the current workspace mounted at `/workspace`.
 
 ```bash
-export SHELLOCK_INCUS_INSTANCE=shellock-lab-001
-export SHELLOCK_WORKSPACE_HOST="$PWD"   # optional; defaults to Shellock's cwd
+export SHELLOCK_INCUS_INSTANCE=shellock-lab
+export SHELLOCK_WORKSPACE_HOST="$PWD"
 export SHELLOCK_WORKSPACE_GUEST=/workspace
 shellock
 ```
 
-Without `SHELLOCK_INCUS_INSTANCE`, Shellock uses local bash.
-
-Manage runtime sessions from inside the normal Pi chat:
+Runtime lifecycle operations remain available inside the conversation:
 
 ```text
 /shellock-runtime
 /shellock-runtime bootstrap
-/shellock-runtime bootstrap --no-image --profile net-basic
-/shellock-runtime status
-/shellock-runtime create shellock-lab --profile net-basic --image shellock-runtime
+/shellock-runtime create shellock-lab --profile net-basic
 /shellock-runtime create shellock-vm --vm --profile lab
 /shellock-runtime start shellock-lab
 /shellock-runtime attach shellock-lab
-/shellock-runtime detach
 /shellock-runtime snapshot shellock-lab clean
 /shellock-runtime restore shellock-lab clean
+/shellock-runtime detach
 /shellock-runtime stop shellock-lab
 /shellock-runtime destroy shellock-lab
 ```
 
-For command-flow tests without Incus, start Shellock with `SHELLOCK_RUNTIME_PROVIDER=dry-run`.
+Bundled profiles:
 
-`bootstrap` imports the bundled Incus profiles and builds/imports the bundled runtime image if the image alias is missing. It expects `incus` and `distrobuilder` on the host, unless `SHELLOCK_RUNTIME_PROVIDER=dry-run` is set.
+- `base`: shell, Git, curl, Python, jq, and ripgrep
+- `net-basic`: base plus common reconnaissance tools
+- `net-advanced`: broader web and network tooling
+- `lab`: binary, forensics, and general research tooling
+- `vm-danger`: VM-oriented profile for high-risk lab work
 
-`attach` switches Shellock's bash execution for the current session to the named Incus instance. `detach` returns the session to local Pi bash.
+The image pins modern tools including nuclei, gitleaks, trufflehog, syft, grype, ffuf, and semgrep. Run `/shellock-doctor` to inspect runtime assets and profile-aware tool availability.
 
-Bundled profiles are `base`, `net-basic`, `net-advanced`, `lab`, and `vm-danger`. `/shellock-doctor` checks that these assets are packaged and, when Incus is available, whether the selected `SHELLOCK_RUNTIME_IMAGE` and `SHELLOCK_RUNTIME_PROFILE` exist on the host.
-
-Tool readiness is profile-aware:
-
-- `base`: core shell, git, curl, Python, jq, ripgrep.
-- `net-basic`: base plus basic recon tools.
-- `net-advanced`: net-basic plus web and network support tools.
-- `lab`: net-advanced plus binary and forensics tooling, with modern security tools treated as recommended.
-- `vm-danger`: lab-oriented checks plus mobile tooling as recommended.
-
-The runtime image pins modern release tools during build:
-
-- `nuclei` 3.9.0
-- `gitleaks` 8.30.1
-- `trufflehog` 3.95.6
-- `syft` 1.46.0
-- `grype` 0.115.0
-- `ffuf` 2.1.0
-- `semgrep` 1.168.0
-
-GitHub release archives are checked against upstream checksum files. Semgrep is installed into `/opt/semgrep` with an exact package version and linked into `/usr/local/bin`.
-
-Validate the runtime image recipe without building an image:
+For command-flow testing without Incus:
 
 ```bash
+SHELLOCK_RUNTIME_PROVIDER=dry-run shellock
+```
+
+## Safety
+
+Use local execution for trusted code review, documentation, and low-risk development. Use a disposable container or VM for untrusted binaries, exploit development, malware-like behavior, or intrusive network testing.
+
+The current repository, supplied files, and explicit local lab resources are treated as authorized for ordinary analysis. External targets and intrusive or destructive actions still require clear authorization and boundaries.
+
+## Verification
+
+```bash
+npm test
+npm run verify:pi-core
 npm run verify:runtime-image
+npm run verify:pack-install
 ```
 
-This extracts the embedded installer, runs `bash -n`, checks pinned versions, rejects floating `latest` references, and verifies that release archive installs use checksum files.
-
-## Smoke Test
-
-From any repo or scratch workspace:
-
-```bash
-mkdir -p /tmp/shellock-pi-smoke
-cd /tmp/shellock-pi-smoke
-shellock --no-session -p "/shellock-init Assess the authorized local smoke workspace"
-find . -maxdepth 2 -type f | sort
-```
-
-Expected files:
-
-```text
-COMMANDS.md
-COVERAGE.md
-MISSION.md
-STATE.md
-SURFACE.md
-THREAT_MODEL.md
-```
-
-## Direction
-
-See [docs/product-direction.md](docs/product-direction.md) for the Pi-family distribution strategy, supported operator modes, and the regular improvement loop.
-See [docs/branding.md](docs/branding.md) for terminal chrome and branding guardrails.
+See [docs/product-direction.md](docs/product-direction.md) for architecture and product boundaries.

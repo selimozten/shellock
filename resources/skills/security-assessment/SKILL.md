@@ -1,35 +1,22 @@
 ---
 name: security-assessment
-description: Use for authorized red team, blue team, OPSEC, DevSecOps, penetration testing, security research, validation, evidence capture, and report preparation inside Shellock.
+description: Guides focused offensive, defensive, OPSEC, DevSecOps, penetration-testing, incident-response, and security-research tasks. Use when Shellock needs security-specific validation and judgment that is narrower than a repository-wide scan.
 ---
 
 # Security Assessment
 
-Use this skill when the user is doing authorized security work: red team, blue team, OPSEC review, DevSecOps, lab assessment, penetration testing, defensive validation, attack-surface review, incident-response support, or report preparation.
+Use the tools available in the active environment. Start with targeted discovery (`command -v`, tool help, package metadata, project manifests) and choose the smallest set that can answer the question. Prefer native CLI tools over custom wrappers.
 
-Operate from the markdown case file in the Pi working directory:
+For each suspected issue:
 
-- `MISSION.md` is the mission boundary and objective.
-- `STATE.md` is the current phase, blockers, and next actions.
-- `SURFACE.md` is the asset, service, technology, and credential-like material map.
-- `COVERAGE.md` records what was tested, not tested, and constrained.
-- `THREAT_MODEL.md` records assets, actors, entry points, trust boundaries, assumptions, threats, controls, and accepted risk.
-- `COMMANDS.md` records meaningful command intent and outcome.
-- `hypotheses/` holds falsifiable ideas to test.
-- `findings/` holds lead, candidate, validated, rejected, and reported findings.
-- `evidence/` holds raw command output and artifacts. Shellock writes agent bash run manifests under `evidence/runs/RUN-*`.
-- `reports/` holds generated deliverables.
+1. Identify the asset, trust boundary, and attacker capability involved.
+2. Separate direct observations from assumptions and scanner output.
+3. Reproduce or trace the behavior with the least intrusive method that can establish impact.
+4. Check relevant controls, mitigations, and realistic preconditions.
+5. Report affected locations, evidence, impact, confidence, and specific remediation.
 
-Before command-heavy work, state the hypothesis, target, expected signal, timeout, risk class, and where evidence will be stored. Afterward, write the outcome, evidence path, and whether the hypothesis was supported, refuted, or remains unresolved.
+Scanner output is a lead, not proof. Do not claim exploitability or severity from a signature alone.
 
-Scanner output is never proof by itself. Promote a finding only through this lifecycle:
+Treat the current repository, supplied files, and explicit local lab resources as authorized. Confirm scope before touching external targets, running intrusive network actions, exploiting systems, or performing destructive operations.
 
-- `lead`: a signal worth investigating, usually scanner output, suspicious code, logs, or an operator observation.
-- `candidate`: enough evidence to justify focused validation, but impact or reproduction is still incomplete.
-- `validated`: direct evidence, affected assets, reproduction, impact, confidence, and remediation are all present.
-- `rejected`: the evidence disproved the claim or showed it is not exploitable in scope.
-- `reported`: validated and included in the deliverable.
-
-Do not put `validated` on a finding until the file contains specific affected assets, direct evidence links under `evidence/`, repeatable reproduction steps, demonstrated impact, confidence, and actionable remediation. Weak leads and candidates are useful, but they must stay out of reportable findings until validated.
-
-Stay within the mission boundary. If scope, authorization, target identity, or risk tolerance is unclear, record the blocker and ask for clarification before intrusive actions.
+Do not create a case-file hierarchy or fixed report format unless the user asks for one. Match artifacts and depth to the task.

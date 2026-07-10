@@ -1,99 +1,75 @@
 # Product Direction
 
-Shellock is a Pi-family security operations agent harness.
+Shellock is a Pi-family terminal agent harness for security research and engineering.
 
 ## Positioning
 
-Shellock should feel like a focused Pi distribution/fork rather than a separate agent platform. Its package identity is `@shellock/pi-coding-agent`, with `shellock` as the terminal binary. Pi owns the terminal chat loop, provider subscriptions, API keys, model switching, sessions, approvals, tools, editor, and extension runtime. Shellock owns the security operations layer.
+Shellock should feel like a capable terminal agent with unusually strong security tooling, skills, and runtime isolation. It is not a case-management application and should not force users through Shellock-specific ceremony before the model can work.
 
-This is an Oh My Pi-style stance: stay close to Pi core, inherit Pi's fast-moving model/provider/tool capabilities, and add a focused security pack on top. Agent-core capabilities and model surfaces change quickly; Shellock should not fork those concerns unless Pi lacks an extension point and the product cannot work without it.
+Primary domains include offensive and defensive security, OPSEC, DevSecOps, penetration testing, vulnerability research, incident response, forensics, and secure software engineering. General coding work remains fully supported.
 
-Primary operator modes:
+## Core Ownership
 
-- Red team and adversary emulation
-- Blue team validation and detection engineering support
-- OPSEC review
-- DevSecOps and secure engineering review
-- Penetration testing and lab assessment
-- Vulnerability research and exploitability validation
-- Incident-response support and forensic triage
+Pi owns:
 
-## Auth And Models
+- agent and tool loops
+- terminal interaction and approvals
+- sessions and compaction
+- model providers, subscriptions, credentials, and selection
+- native read, write, edit, and bash tools
 
-Do not build a separate auth system. Shellock should reuse Pi's model access paths:
+Shellock owns:
 
-- Pi-supported subscription login through `/login`
-- Provider API keys and tokens through environment variables or stored Pi auth
-- `/model`, `Ctrl+L`, and `--model provider/model` for selection
-
-Shellock may set opinionated defaults, but it should never make Together, Claude, Codex, OpenAI, Anthropic, or any other provider the only viable path. Shellock keeps its own `~/.shellock/agent` store and never reads or writes `~/.pi/agent`; credentials, custom model registries, enabled-model filters, packages, sessions, and UI settings remain isolated.
-
-## Core Drift Guardrails
-
-- Pin the Pi core dependency used to build Shellock so distribution builds are reproducible.
-- Keep Pi as a pinned runtime dependency so installed Shellock distributions bring the upstream core they delegate to.
-- Mirror Pi's direct runtime dependencies and avoid adding unrelated runtime libraries around the core.
-- Copy/vendor Pi during build instead of reimplementing the terminal agent.
-- Verify copied Pi `dist/`, README, and changelog byte-for-byte against upstream; Shellock may brand metadata and inject extensions, but it must not patch Pi core in place.
-- Inject Shellock through Pi extensions, skills, prompts, and runtime images.
-- Verify that Shellock exposes only the `shellock` binary and does not reintroduce helper CLIs such as `shellock-case`.
-- Prefer normal runtime CLI tools over one custom wrapper per security tool.
+- focused security system guidance
+- discoverable security and runtime skills
+- a curated Linux tool environment
+- Incus/LXC/VM execution profiles
+- terminal identity and concise runtime status
+- compatibility fixes that Pi cannot yet express correctly upstream
 
 ## Interaction Contract
 
-Shellock should behave like a terminal agent, not an autonomous batch runner.
+- Respond naturally to conversation and act directly on work requests.
+- Do not require mission files, scope files, case directories, report templates, or command rituals.
+- Use skills for repeatable specialized workflows, including repository-wide scans.
+- Let the model select and discover CLI tools from the environment.
+- Create artifacts when they help the task or the user asks for them.
+- Treat supplied repositories and local lab resources as authorized for ordinary work.
+- Confirm authorization before external-target exploitation, intrusive network activity, destructive operations, or unclear third-party scope.
 
-- Casual conversation stays conversational.
-- Mission work starts when the user explicitly asks for it, invokes `/shellock`, or creates a mission.
-- A fresh directory does not get case files silently.
-- `/shellock-init <authorized mission>` creates the case file.
-- If `MISSION.md` exists, Shellock can repair missing supporting files without overwriting user content.
-- The agent should ask for scope and authorization before intrusive commands unless the case file and latest user request already make them clear.
+## Tool Strategy
 
-## Safe Runtime Guidance
+The default tool surface stays small and durable: read, write, edit, and bash. Broader capability comes from the environment rather than hundreds of bespoke wrappers.
 
-Shellock should teach safe operating patterns:
+The runtime image should contain a practical set of security, reverse-engineering, network, web, cloud, supply-chain, and forensic CLI tools. Skills should teach discovery and sound workflows without hard-coding one command sequence for every repository.
 
-- Use a disposable Incus/LXC runtime by default for hands-on security work.
-- Use a VM for higher-risk targets, malware-like behavior, or exploit execution.
-- Use a spare laptop/lab host if the user cannot run containers/VMs.
-- Use local mode only for low-risk analysis, code review, docs, reporting, and trusted commands.
+## Auth And Models
 
-Model assessment should track refusal rate, over-refusal on authorized tasks, unsafe compliance, evidence quality, tool-use discipline, and scope adherence.
+Shellock uses Pi's provider and authentication paths while keeping all state under `~/.shellock/agent`. It never reads or writes `~/.pi/agent` and never silently pins a paid provider.
 
-## Build Shape
+Provider compatibility fixes should use Pi extension points when possible. Avoid a second provider abstraction or hidden credential store.
 
-The sustainable shape is:
+## Runtime Strategy
 
-```text
-Pi core copied or vendored during build
--> Shellock-branded CLI
--> Shellock built-in extensions
--> security skills and prompt packs
--> markdown case file
--> evidence/run ledger
--> Incus/LXC/VM runtime profiles and images
--> report/finding utilities inside the Shellock agent
-```
+- Local bash for trusted development and low-risk analysis
+- Disposable Incus system containers for common hands-on research
+- Incus VMs for untrusted binaries, exploit development, malware-like behavior, and higher isolation
+- Normal CLI tools inside the runtime rather than MCP wrappers for every utility
 
-Avoid:
+## Drift Guardrails
 
-- A second agent loop
-- A second terminal UI
-- A web dashboard before the terminal product is excellent
-- Per-tool MCP wrappers when the runtime image can provide normal CLI tools
-- A database for state that the agent can maintain as readable markdown
-- A second public helper CLI for case-file operations
+- Pin and regularly update the upstream Pi dependency.
+- Verify copied Pi artifacts byte-for-byte.
+- Keep Shellock behavior in extensions, skills, prompts, and runtime assets.
+- Add a core patch only when no supported extension point can deliver required behavior.
+- Verify installed-package behavior, not only source-tree tests.
 
-## Regular Improvement Loop
+## Improvement Order
 
-Regular work should follow this order:
+1. Keep the upstream harness and model/provider surface current.
+2. Improve tool availability and runtime images.
+3. Build high-quality security skills for repeatable work.
+4. Improve terminal ergonomics without obscuring the transcript.
+5. Add focused compatibility and reliability tests.
 
-1. Track upstream Pi and update the copied core.
-2. Keep Shellock extensions compatible with Pi's extension API.
-3. Improve the runtime image and profiles.
-4. Expand skills and prompts for specific security operator workflows.
-5. Improve evidence, findings, threat model, coverage, and reporting.
-6. Add tests around product contracts before adding UI surface area.
-
-The core promise is a terminal-native security operator harness with durable evidence and normal Linux tooling.
+The core promise is a fast terminal-native agent with strong security judgment, a deep normal-CLI environment, and optional VM-like isolation.

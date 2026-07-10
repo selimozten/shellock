@@ -175,10 +175,9 @@ Common options:
 Inside Shellock:
   /login                       Use Pi-supported subscription or API-key login
   /model                       Switch models
-  /shellock-init <mission>     Create an authorized security case file
-  /shellock <task>             Continue mission work from the case file
-  /shellock-status             Show case-file/runtime status
-  /shellock-doctor             Check config, case file, runtime, and tools
+  /skills                      Browse and invoke specialized workflows
+  /shellock-runtime            Inspect or manage an isolated runtime
+  /shellock-doctor             Check config, runtime, and available tools
 
 Shellock does not copy credentials from Pi automatically. Use /login inside
 Shellock or provider environment variables such as ANTHROPIC_API_KEY,

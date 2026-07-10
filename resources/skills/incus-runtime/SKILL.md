@@ -12,7 +12,7 @@ Pi remains the interactive agent. The runtime only changes where terminal comman
 - Pi's normal `bash` tool is replaced by the Incus bash extension.
 - Host working directory maps to `SHELLOCK_WORKSPACE_GUEST`, default `/workspace`.
 - The root filesystem should be disposable.
-- The markdown workspace is persistent and mounted into the runtime.
+- The current workspace is persistent and mounted into the runtime.
 
 Assume the runtime image already contains common assessment tooling. Prefer normal terminal commands over wrapping every tool as a custom MCP-style tool.
 
@@ -30,8 +30,8 @@ Available bundled profiles:
 - `lab`: heavier general research profile.
 - `vm-danger`: VM-oriented profile for high-risk authorized lab work.
 
-Use `/shellock-doctor` after attaching a runtime. Required tool groups should be fixed before hands-on work for that profile; recommended tool groups can be recorded as limitations in `COVERAGE.md` when they are not needed for the mission.
+Use `/shellock-doctor` after attaching a runtime. Required tool groups should be fixed before hands-on work for that profile; recommended tools can be installed or recorded as task limitations when they are actually needed.
 
 The bundled image installs pinned modern tools: nuclei 3.9.0, gitleaks 8.30.1, trufflehog 3.95.6, syft 1.46.0, grype 0.115.0, ffuf 2.1.0, and semgrep 1.168.0. If `/shellock-doctor` reports these missing in an attached runtime, rebuild the image instead of installing ad hoc unpinned copies.
 
-Record meaningful runtime facts in `STATE.md` or `COVERAGE.md`: image, instance name, network posture, privilege posture, mounted workspace path, and any tool availability limitations.
+When the user asks for a durable record, include the image, instance name, network posture, privilege posture, mounted workspace path, and relevant tool limitations in the requested artifact.

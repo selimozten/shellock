@@ -94,7 +94,6 @@ function assertPackedSurface(packed) {
     "dist/pi/extensions/shellock.js",
     "dist/pi/extensions/incus-bash.js",
     "resources/skills/security-assessment/SKILL.md",
-    "resources/prompts/shellock.md",
     "resources/themes/shellock-dark.json",
     "resources/themes/shellock-light.json",
     "images/incus/shellock.yaml",

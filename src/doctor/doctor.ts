@@ -6,7 +6,6 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { BUNDLED_RUNTIME_PROFILES, parseRuntimeProfile, toolGroupsForProfile } from "../runtime/tooling.js";
-import { workspacePaths } from "../workspace/workspace.js";
 
 const execFileAsync = promisify(execFile);
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -31,7 +30,6 @@ export async function runDoctor(options: { workspaceRoot?: string } = {}): Promi
   checks.push(checkNodeVersion());
   checks.push(...await checkPackageAssets());
   checks.push(...await checkAgentConfig());
-  checks.push(...await checkCaseFile(workspaceRoot));
   checks.push(...await checkRuntime(workspaceRoot));
   checks.push(...await checkToolProfile());
 
@@ -69,7 +67,6 @@ function checkNodeVersion(): DoctorCheck {
 async function checkPackageAssets(): Promise<DoctorCheck[]> {
   const required = [
     ["skills", join(PACKAGE_ROOT, "resources", "skills")],
-    ["prompts", join(PACKAGE_ROOT, "resources", "prompts")],
     ["incus image", join(PACKAGE_ROOT, "images", "incus", "shellock.yaml")],
     ...BUNDLED_RUNTIME_PROFILES.map((profile) => [`incus ${profile} profile`, join(PACKAGE_ROOT, "profiles", "incus", `${profile}.yaml`)] as const),
   ] as const;
@@ -169,53 +166,6 @@ function configuredEnvProviders(): string[] {
     .map(([provider]) => provider);
 }
 
-async function checkCaseFile(root: string): Promise<DoctorCheck[]> {
-  const workspace = workspacePaths(root);
-  if (!existsSync(workspace.missionFile)) {
-    return [
-      {
-        status: "warn",
-        name: "case file",
-        detail: "MISSION.md is missing in the current workspace",
-        hint: "Run /shellock-init <authorized mission> inside Shellock.",
-      },
-    ];
-  }
-
-  const requiredFiles = [
-    ["MISSION.md", workspace.missionFile],
-    ["STATE.md", workspace.stateFile],
-    ["SURFACE.md", workspace.surfaceFile],
-    ["COVERAGE.md", workspace.coverageFile],
-    ["COMMANDS.md", workspace.commandsFile],
-    ["THREAT_MODEL.md", workspace.threatModelFile],
-  ] as const;
-  const requiredDirs = [
-    ["hypotheses", workspace.hypothesesDir],
-    ["findings", workspace.findingsDir],
-    ["evidence", workspace.evidenceDir],
-    ["evidence/runs", workspace.runsDir],
-    ["reports", workspace.reportsDir],
-    ["scratch", workspace.scratchDir],
-  ] as const;
-
-  const missingFiles = (await Promise.all(requiredFiles.map(async ([name, path]) => ((await pathExists(path)) ? "" : name)))).filter(Boolean);
-  const missingDirs = (await Promise.all(requiredDirs.map(async ([name, path]) => ((await pathExists(path)) ? "" : name)))).filter(Boolean);
-
-  if (missingFiles.length === 0 && missingDirs.length === 0) {
-    return [{ status: "pass", name: "case file", detail: "mission workspace is complete" }];
-  }
-
-  return [
-    {
-      status: "warn",
-      name: "case file",
-      detail: `missing ${[...missingFiles, ...missingDirs].join(", ")}`,
-      hint: "Run /shellock-status or /shellock-init; Shellock will repair missing non-mission artifacts.",
-    },
-  ];
-}
-
 async function checkRuntime(workspaceRoot: string): Promise<DoctorCheck[]> {
   const instance = process.env.SHELLOCK_INCUS_INSTANCE;
   const runtimeProvider = process.env.SHELLOCK_RUNTIME_PROVIDER ?? "incus";
@@ -282,7 +232,7 @@ async function checkRuntime(workspaceRoot: string): Promise<DoctorCheck[]> {
           status: "fail",
           name: "runtime workspace",
           detail: `${instance}:${guestWorkspace} is not reachable`,
-          hint: "Start the instance and mount the mission workspace at SHELLOCK_WORKSPACE_GUEST.",
+          hint: "Start the instance and mount the current workspace at SHELLOCK_WORKSPACE_GUEST.",
         },
   );
 
@@ -360,12 +310,12 @@ async function detectAvailableTools(): Promise<Set<string>> {
 function runtimeToolHint(required: boolean): string {
   if (process.env.SHELLOCK_INCUS_INSTANCE) {
     return required
-      ? "Rebuild the Shellock runtime image or choose a profile whose required tools match this mission."
-      : "Optional tools can be added to the Shellock runtime image when the mission needs them.";
+      ? "Rebuild the Shellock runtime image or choose a profile whose required tools match the task."
+      : "Optional tools can be added to the Shellock runtime image when the task needs them.";
   }
   return required
     ? "Use a Shellock Incus runtime for this profile, choose a lighter SHELLOCK_RUNTIME_PROFILE, or install the missing local tools intentionally."
-    : "Optional tools can be installed locally or inside the Shellock runtime when the mission needs them.";
+    : "Optional tools can be installed locally or inside the Shellock runtime when the task needs them.";
 }
 
 function firstLine(value: string): string {

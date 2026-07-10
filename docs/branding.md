@@ -4,8 +4,8 @@ Shellock's terminal startup should stay text-first and operator-focused:
 
 - Use one compact, centered startup card with a subdued double-line border.
 - Keep the transcript as the dominant surface. Startup is orientation, not a dashboard.
-- Show only identity, version, mission state, runtime, workspace, and the primary action in the card.
-- Keep model, context, branch, case state, and runtime in a quiet two-line footer.
+- Show only identity, version, readiness, runtime, workspace, and model in the card.
+- Keep model, context, branch, and runtime in a quiet two-line footer.
 - Give the composer a complete border and enough contrast to remain the primary interaction surface.
 - Keep reasoning and active work visibly labeled when the selected provider exposes them.
 - Use the compact Shellock wordmark only inside the startup card; do not repeat it in persistent chrome.
