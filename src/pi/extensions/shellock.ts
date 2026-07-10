@@ -11,7 +11,8 @@ import { runRuntimeCommand } from "../../runtime/commands.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
-const HEADER_MAX_WIDTH = 96;
+const HEADER_MAX_WIDTH = 112;
+const HEADER_TWO_COLUMN_MIN_WIDTH = 94;
 const SHELLOCK_MARK = "shellock";
 const SHELLOCK_WORDMARK = [
   "       __       ____         __  ",
@@ -91,18 +92,18 @@ class ShellockHeader {
   invalidate(): void {}
 
   render(width: number): string[] {
-    if (width < 56) return this.renderCompact(width);
+    if (width < 52) return this.renderCompact(width);
 
     const boxWidth = Math.min(width - 2, HEADER_MAX_WIDTH);
     const innerWidth = boxWidth - 2;
-    const boxLines = innerWidth < 80 ? this.renderSingleColumn(boxWidth) : this.renderTwoColumn(boxWidth);
+    const boxLines = innerWidth < HEADER_TWO_COLUMN_MIN_WIDTH ? this.renderSingleColumn(boxWidth) : this.renderTwoColumn(boxWidth);
     const leftPadding = " ".repeat(Math.max(0, Math.floor((width - boxWidth) / 2)));
     return boxLines.map((line) => `${leftPadding}${line}`);
   }
 
   private renderTwoColumn(boxWidth: number): string[] {
     const innerWidth = boxWidth - 2;
-    const leftWidth = 39;
+    const leftWidth = 43;
     const rightWidth = innerWidth - leftWidth - 1;
     const leftRows = this.leftPanel(leftWidth);
     const rightRows = this.rightPanel(rightWidth);
@@ -128,12 +129,15 @@ class ShellockHeader {
   private renderSingleColumn(boxWidth: number): string[] {
     const innerWidth = boxWidth - 2;
     const rows = [
-      this.brandLine(),
+      alignColumns(
+        this.brandLine(),
+        `${this.theme.fg("success", "●")} ${this.theme.fg("muted", "ready")}`,
+        innerWidth - 2,
+      ),
       this.theme.fg("dim", "security research harness"),
-      "",
-      `${this.theme.fg("success", "●")} ${this.theme.fg("muted", "ready")}`,
       this.keyValueLine("runtime", shortRuntimeStatus(), innerWidth),
       this.keyValueLine("workspace", compactCwd(this.ctx.cwd), innerWidth),
+      this.keyValueLine("model", modelValue(this.ctx), innerWidth),
     ];
 
     return [this.topBorder(boxWidth), ...rows.map((row) => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
@@ -142,20 +146,24 @@ class ShellockHeader {
   private leftPanel(width: number): string[] {
     const theme = this.theme;
     return [
-      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.fg("muted", line), width)),
+      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.fg("accent", line), width)),
       "",
-      centerText(theme.fg("dim", "security research harness"), width),
-      centerText(theme.fg("borderMuted", `v${this.version}`), width),
+      centerText(theme.fg("muted", "security research harness"), width),
     ];
   }
 
   private rightPanel(width: number): string[] {
     return [
-      this.theme.bold(this.theme.fg("accent", "Ready")),
+      alignColumns(
+        `${this.theme.fg("success", "●")} ${this.theme.bold(this.theme.fg("accent", "ready"))}`,
+        this.theme.fg("dim", `v${this.version}`),
+        width,
+      ),
       "",
-      this.keyValueLine("runtime", shortRuntimeStatus(), width),
       this.keyValueLine("workspace", compactCwd(this.ctx.cwd), width),
       this.keyValueLine("model", modelValue(this.ctx), width),
+      this.keyValueLine("runtime", shortRuntimeStatus(), width),
+      "",
     ];
   }
 
@@ -171,9 +179,9 @@ class ShellockHeader {
     const theme = this.theme;
     return [
       theme.fg("borderMuted", "║"),
-      fitText(left, leftWidth),
+      fitText(` ${left}`, leftWidth),
       theme.fg("borderMuted", "│"),
-      fitText(right, rightWidth),
+      fitText(` ${right}`, rightWidth),
       theme.fg("borderMuted", "║"),
     ].join("");
   }
@@ -187,7 +195,7 @@ class ShellockHeader {
   }
 
   private keyValueLine(label: string, value: string, width: number): string {
-    const labelWidth = Math.min(9, Math.max(5, Math.floor(width * 0.22)));
+    const labelWidth = Math.min(10, Math.max(7, Math.floor(width * 0.2)));
     const key = label.padEnd(labelWidth, " ");
     return `${this.theme.fg("dim", key)} ${this.theme.fg("muted", value)}`;
   }
@@ -230,6 +238,17 @@ class ShellockFooter {
       ];
     }
 
+    if (width >= 100) {
+      return [
+        alignThreeColumns(
+          this.theme.fg("dim", location),
+          this.theme.fg("muted", runtime),
+          this.theme.fg("dim", `${contextValue(this.ctx)} · ${modelValue(this.ctx)}`),
+          width,
+        ),
+      ];
+    }
+
     return [
       alignColumns(this.theme.fg("dim", location), this.theme.fg("dim", contextValue(this.ctx)), width),
       alignColumns(this.theme.fg("muted", runtime), this.theme.fg("dim", modelValue(this.ctx)), width),
@@ -246,7 +265,7 @@ class ShellockEditor extends CustomEditor {
     if (width < 8) return super.render(width);
 
     const contentWidth = width - 4;
-    const rendered = super.render(contentWidth);
+    const rendered = super.render(Math.max(1, contentWidth - 2));
     rendered.shift();
     const lowerBorder = rendered.findIndex((line) => /^─+(?:\s*[↑↓].*)?$/.test(stripAnsi(line)));
     if (lowerBorder >= 0) rendered.splice(lowerBorder, 1);
@@ -254,7 +273,10 @@ class ShellockEditor extends CustomEditor {
     const horizontal = this.borderColor("─");
     return [
       `${this.borderColor("╭")}${horizontal.repeat(width - 2)}${this.borderColor("╮")}`,
-      ...rendered.map((line) => `${this.borderColor("│")} ${fitText(line, contentWidth)} ${this.borderColor("│")}`),
+      ...rendered.map((line, index) => {
+        const prefix = index === 0 ? `${this.borderColor("›")} ` : "  ";
+        return `${this.borderColor("│")} ${fitText(`${prefix}${line}`, contentWidth)} ${this.borderColor("│")}`;
+      }),
       `${this.borderColor("╰")}${horizontal.repeat(width - 2)}${this.borderColor("╯")}`,
     ];
   }
@@ -274,10 +296,34 @@ function centerText(text: string, width: number): string {
 }
 
 function alignColumns(left: string, right: string, width: number): string {
-  const availableLeft = Math.max(0, width - visibleWidth(right) - 2);
+  const clippedRight = visibleWidth(right) > width ? truncateToWidth(right, width, "") : right;
+  const availableLeft = Math.max(0, width - visibleWidth(clippedRight) - 2);
   const clippedLeft = visibleWidth(left) > availableLeft ? truncateToWidth(left, availableLeft, "") : left;
-  const gap = " ".repeat(Math.max(2, width - visibleWidth(clippedLeft) - visibleWidth(right)));
-  return `${clippedLeft}${gap}${right}`;
+  const gap = " ".repeat(Math.max(0, width - visibleWidth(clippedLeft) - visibleWidth(clippedRight)));
+  return `${clippedLeft}${gap}${clippedRight}`;
+}
+
+function alignThreeColumns(left: string, center: string, right: string, width: number): string {
+  const leftWidth = visibleWidth(left);
+  const centerWidth = visibleWidth(center);
+  const rightWidth = visibleWidth(right);
+  const centerStart = Math.max(leftWidth + 2, Math.floor((width - centerWidth) / 2));
+  const rightStart = width - rightWidth;
+
+  if (centerStart + centerWidth + 2 > rightStart) {
+    const maxRightWidth = Math.max(0, width - centerWidth - 4);
+    const clippedRight = rightWidth > maxRightWidth ? truncateToWidth(right, maxRightWidth, "") : right;
+    const availableLeft = Math.max(0, width - centerWidth - visibleWidth(clippedRight) - 4);
+    const clippedLeft = leftWidth > availableLeft ? truncateToWidth(left, availableLeft, "") : left;
+    const secondGap = " ".repeat(
+      Math.max(2, width - visibleWidth(clippedLeft) - centerWidth - visibleWidth(clippedRight) - 2),
+    );
+    return `${clippedLeft}  ${center}${secondGap}${clippedRight}`;
+  }
+
+  const firstGap = " ".repeat(centerStart - leftWidth);
+  const secondGap = " ".repeat(rightStart - centerStart - centerWidth);
+  return `${left}${firstGap}${center}${secondGap}${right}`;
 }
 
 function stripAnsi(text: string): string {
