@@ -11,8 +11,10 @@ import shellockExtension from "../pi/extensions/shellock.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "../..");
 const SHELLOCK_AGENT_ENV = "SHELLOCK_CODING_AGENT_DIR";
+const SHELLOCK_CONFIG_VERSION = 1;
 const SHELLOCK_THEME_SETTING = "shellock-light/shellock-dark";
 const SHELLOCK_THEME_FILES = ["shellock-dark.json", "shellock-light.json"];
+const LEGACY_COPIED_PACKAGES = ["npm:pi-mcp-adapter"];
 const SHELLOCK_FORCED_MODEL_DEFAULTS = [
   { provider: "zai", model: "glm-5.2", ref: "zai/glm-5.2" },
   { provider: "together", model: "zai-org/glm-5.2", ref: "together/zai-org/glm-5.2" },
@@ -40,6 +42,7 @@ async function run(): Promise<void> {
 
   process.title = "shellock";
   process.env.PI_CODING_AGENT = "true";
+  process.env.PI_SKIP_VERSION_CHECK = "1";
 
   const piCoreMainPath = join(PACKAGE_ROOT, "dist", "pi-core", "dist", "main.js");
   const { main } = (await import(pathToFileURL(piCoreMainPath).href)) as { main: PiMain };
@@ -75,6 +78,7 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
 
   if (!existsSync(targetPath)) {
     const settings = {
+      shellockConfigVersion: SHELLOCK_CONFIG_VERSION,
       defaultThinkingLevel: "high",
       packages: [],
       theme: SHELLOCK_THEME_SETTING,
@@ -90,6 +94,7 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
   }
 
   const target = await readJsonRecord(targetPath);
+  migrateLegacyShellockSettings(target);
   if (target.hideThinkingBlock === undefined) target.hideThinkingBlock = false;
   if (isShellockForcedDefault(target)) {
     delete target.defaultProvider;
@@ -103,6 +108,23 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
     delete target.enabledModels;
   }
   await writeJson(targetPath, target);
+}
+
+function migrateLegacyShellockSettings(settings: Record<string, unknown>): void {
+  const version = typeof settings.shellockConfigVersion === "number" ? settings.shellockConfigVersion : 0;
+  if (version >= SHELLOCK_CONFIG_VERSION) return;
+
+  const packages = asStringArray(settings.packages);
+  const inheritedPackageState =
+    packages.length === LEGACY_COPIED_PACKAGES.length &&
+    packages.every((entry, index) => entry === LEGACY_COPIED_PACKAGES[index]);
+
+  if (inheritedPackageState) {
+    settings.packages = [];
+    if (settings.enableInstallTelemetry === true) settings.enableInstallTelemetry = false;
+  }
+
+  settings.shellockConfigVersion = SHELLOCK_CONFIG_VERSION;
 }
 
 function isShellockForcedDefault(settings: Record<string, unknown>): boolean {
