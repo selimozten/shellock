@@ -3,7 +3,9 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { buildAssessmentPrompt } from "../../agent/prompt-pack.js";
 import { formatDoctorReport, runDoctor } from "../../doctor/doctor.js";
 import { generateReport } from "../../report/report.js";
@@ -20,21 +22,14 @@ import { initializeWorkspace, readMissionWorkspace, workspacePaths } from "../..
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
-const HEADER_MAX_WIDTH = 132;
-const SHELLOCK_MARK = "SHELLOCK//OPS";
+const HEADER_MAX_WIDTH = 96;
+const SHELLOCK_MARK = "shellock";
 const SHELLOCK_WORDMARK = [
   "       __       ____         __  ",
   "  ___ / /  ___ / / /__  ____/ /__",
   " (_-</ _ \\/ -_) / / _ \\/ __/  '_/",
   "/___/_//_/\\__/_/_/\\___/\\__/_/\\_\\ ",
 ];
-const TOOL_CONTRACT = [
-  ["read/grep/find/ls", "inspect files and locate text"],
-  ["edit/write", "change files through Pi tools"],
-  ["bash", "tests, scanners, package managers, runtime ops"],
-  ["rule", "avoid Python just to print specific file lines"],
-] as const;
-
 export default function shellockExtension(pi: ExtensionAPI) {
   const activeRuns = new Map<string, ShellockRun>();
 
@@ -191,19 +186,22 @@ function applyTerminalBranding(ctx: ExtensionContext, status: CaseFileStatus): v
 
   if (ctx.mode !== "tui" || !ctx.hasUI) return;
 
-  ctx.ui.setTitle(`Shellock - ${basename(ctx.cwd)} - ${status.hasMission ? "case" : "pack"}`);
-  ctx.ui.setHiddenThinkingLabel("reasoning hidden");
-  ctx.ui.setWorkingMessage(status.hasMission ? "Shellock is working the case" : "Shellock is thinking");
+  ctx.ui.setTitle(`${basename(ctx.cwd)} - shellock`);
+  ctx.ui.setHiddenThinkingLabel("reasoning");
+  ctx.ui.setWorkingMessage("reasoning");
+  ctx.ui.setWorkingVisible(true);
   ctx.ui.setWorkingIndicator({
     frames: [
-      ctx.ui.theme.fg("dim", "◌"),
-      ctx.ui.theme.fg("muted", "◍"),
+      ctx.ui.theme.fg("dim", "·"),
+      ctx.ui.theme.fg("muted", "•"),
       ctx.ui.theme.fg("accent", "●"),
-      ctx.ui.theme.fg("muted", "◍"),
+      ctx.ui.theme.fg("muted", "•"),
     ],
-    intervalMs: 120,
+    intervalMs: 160,
   });
   ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, status, PACKAGE_VERSION, theme));
+  ctx.ui.setFooter((tui, theme, footerData) => new ShellockFooter(tui, ctx, status, theme, footerData));
+  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings));
 }
 
 class ShellockHeader {
@@ -217,13 +215,18 @@ class ShellockHeader {
   invalidate(): void {}
 
   render(width: number): string[] {
-    if (width < 72) return this.renderCompact(width);
+    if (width < 56) return this.renderCompact(width);
 
-    const boxWidth = Math.min(width, HEADER_MAX_WIDTH);
+    const boxWidth = Math.min(width - 2, HEADER_MAX_WIDTH);
     const innerWidth = boxWidth - 2;
-    if (innerWidth < 94) return this.renderSingleColumn(boxWidth);
+    const boxLines = innerWidth < 80 ? this.renderSingleColumn(boxWidth) : this.renderTwoColumn(boxWidth);
+    const leftPadding = " ".repeat(Math.max(0, Math.floor((width - boxWidth) / 2)));
+    return boxLines.map((line) => `${leftPadding}${line}`);
+  }
 
-    const leftWidth = Math.min(42, Math.max(38, Math.floor(innerWidth * 0.34)));
+  private renderTwoColumn(boxWidth: number): string[] {
+    const innerWidth = boxWidth - 2;
+    const leftWidth = 39;
     const rightWidth = innerWidth - leftWidth - 1;
     const leftRows = this.leftPanel(leftWidth);
     const rightRows = this.rightPanel(rightWidth);
@@ -242,8 +245,8 @@ class ShellockHeader {
     const theme = this.theme;
     return [
       fitText(`${theme.bold(theme.fg("accent", SHELLOCK_MARK))} ${theme.fg("muted", `v${this.version}`)}`, width),
-      fitText(`${this.caseState()}  ${theme.fg("dim", "runtime")} ${theme.fg("muted", shortRuntimeStatus())}`, width),
-      fitText(theme.fg("dim", this.primaryAction()), width),
+      fitText(`${this.caseState()} ${theme.fg("borderMuted", "·")} ${theme.fg("muted", shortRuntimeStatus())}`, width),
+      fitText(theme.fg("muted", this.primaryAction()), width),
     ];
   }
 
@@ -251,16 +254,11 @@ class ShellockHeader {
     const innerWidth = boxWidth - 2;
     const rows = [
       this.brandLine(),
-      this.keyValueLine("state", stripAnsi(this.caseState()), innerWidth),
-      this.keyValueLine("runtime", shortRuntimeStatus(), innerWidth),
+      this.theme.fg("dim", "security research harness"),
+      "",
+      `${this.caseState()} ${this.theme.fg("borderMuted", "·")} ${this.theme.fg("muted", shortRuntimeStatus())}`,
+      this.theme.fg(this.status.hasMission ? "success" : "warning", this.primaryAction()),
       this.keyValueLine("workspace", compactCwd(this.ctx.cwd), innerWidth),
-      separatorText(innerWidth, this.theme),
-      this.sectionTitle("Mission Control"),
-      this.theme.fg("muted", this.primaryAction()),
-      this.recordLine(),
-      separatorText(innerWidth, this.theme),
-      this.sectionTitle("Tool Contract"),
-      ...TOOL_CONTRACT.map(([label, detail]) => this.toolLine(label, detail)),
     ];
 
     return [this.topBorder(boxWidth), ...rows.map((row) => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
@@ -269,113 +267,142 @@ class ShellockHeader {
   private leftPanel(width: number): string[] {
     const theme = this.theme;
     return [
-      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.bold(theme.fg("accent", line)), width)),
-      centerText(theme.fg("muted", "authorized security workspace"), width),
-      centerText(this.caseState(), width),
-      centerText(this.metricsLine(), width),
+      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.fg("muted", line), width)),
       "",
-      this.keyValueLine("model", this.modelValue(), width),
-      this.keyValueLine("context", this.contextValue(), width),
-      this.keyValueLine("cwd", compactCwd(this.ctx.cwd), width),
+      centerText(theme.fg("dim", "security research harness"), width),
+      centerText(theme.fg("borderMuted", `v${this.version}`), width),
     ];
   }
 
   private rightPanel(width: number): string[] {
     return [
-      this.sectionTitle("Mission Control"),
-      this.theme.fg("muted", this.primaryAction()),
-      this.keyValueLine("state", stripAnsi(this.caseState()), width),
+      this.theme.bold(this.theme.fg("accent", "Mission")),
+      this.theme.fg(this.status.hasMission ? "success" : "warning", this.primaryAction()),
+      "",
+      this.keyValueLine("state", this.caseStateText(), width),
       this.keyValueLine("runtime", shortRuntimeStatus(), width),
-      this.recordLine(),
-      separatorText(width, this.theme),
-      this.sectionTitle("Tool Contract"),
-      ...TOOL_CONTRACT.map(([label, detail]) => this.toolLine(label, detail)),
+      this.keyValueLine("workspace", compactCwd(this.ctx.cwd), width),
     ];
   }
 
   private topBorder(width: number): string {
-    const theme = this.theme;
-    const innerWidth = width - 2;
-    const title = ` ${SHELLOCK_MARK} v${this.version} `;
-    const prefix = "═╡";
-    const suffix = "╞";
-    const fillWidth = Math.max(0, innerWidth - visibleWidth(prefix) - visibleWidth(title) - visibleWidth(suffix));
-    return `${theme.fg("accent", "╔")}${theme.fg("accent", prefix)}${theme.bold(theme.fg("accent", title))}${theme.fg("accent", suffix)}${theme.fg("borderMuted", "═".repeat(fillWidth))}${theme.fg("accent", "╗")}`;
+    return this.theme.fg("borderMuted", `╔${"═".repeat(Math.max(0, width - 2))}╗`);
   }
 
   private bottomBorder(width: number): string {
-    return this.theme.fg("accent", `╚${"═".repeat(Math.max(0, width - 2))}╝`);
+    return this.theme.fg("borderMuted", `╚${"═".repeat(Math.max(0, width - 2))}╝`);
   }
 
   private splitRow(left: string, leftWidth: number, right: string, rightWidth: number): string {
     const theme = this.theme;
     return [
-      theme.fg("accent", "║"),
+      theme.fg("borderMuted", "║"),
       fitText(left, leftWidth),
       theme.fg("borderMuted", "│"),
       fitText(right, rightWidth),
-      theme.fg("accent", "║"),
+      theme.fg("borderMuted", "║"),
     ].join("");
   }
 
   private row(content: string, width: number): string {
-    return `${this.theme.fg("accent", "║")}${fitText(content, width)}${this.theme.fg("accent", "║")}`;
+    return `${this.theme.fg("borderMuted", "║")}${fitText(` ${content}`, width)}${this.theme.fg("borderMuted", "║")}`;
   }
 
   private brandLine(): string {
-    return `${this.theme.fg("borderMuted", "◢")} ${this.theme.bold(this.theme.fg("accent", SHELLOCK_MARK))} ${this.theme.fg("borderMuted", "◤")}`;
-  }
-
-  private sectionTitle(title: string): string {
-    return `${this.theme.fg("borderMuted", "▸")} ${this.theme.bold(this.theme.fg("accent", title))}`;
+    return `${this.theme.bold(this.theme.fg("accent", SHELLOCK_MARK))} ${this.theme.fg("muted", `v${this.version}`)}`;
   }
 
   private keyValueLine(label: string, value: string, width: number): string {
     const labelWidth = Math.min(9, Math.max(5, Math.floor(width * 0.22)));
-    const key = label.toUpperCase().padEnd(labelWidth, " ");
+    const key = label.padEnd(labelWidth, " ");
     return `${this.theme.fg("dim", key)} ${this.theme.fg("muted", value)}`;
-  }
-
-  private toolLine(label: string, detail: string): string {
-    return `${this.theme.fg("accent", "◆")} ${this.theme.bold(label.padEnd(18, " "))} ${this.theme.fg("muted", detail)}`;
   }
 
   private primaryAction(): string {
     return this.status.hasMission
-      ? "Next: /shellock-status or /shellock <task>"
-      : "Start: /shellock-init <authorized mission>";
+      ? "/shellock <task> to continue the case"
+      : "/shellock-init <authorized mission>";
   }
 
   private caseState(): string {
     return this.status.hasMission
       ? `${this.theme.fg("success", "●")} ${this.theme.fg("success", "case ready")}`
-      : `${this.theme.fg("warning", "●")} ${this.theme.fg("warning", "awaiting authorization")}`;
+      : `${this.theme.fg("warning", "○")} ${this.theme.fg("muted", "no active case")}`;
   }
 
-  private metricsLine(): string {
+  private caseStateText(): string {
+    if (!this.status.hasMission) return "no active case";
+    return "authorized case ready";
+  }
+
+}
+
+type FooterData = {
+  getGitBranch(): string | null;
+  onBranchChange(callback: () => void): () => void;
+};
+
+class ShellockFooter {
+  private readonly unsubscribe: () => void;
+
+  constructor(
+    tui: TUI,
+    private readonly ctx: ExtensionContext,
+    private readonly status: CaseFileStatus,
+    private readonly theme: ExtensionContext["ui"]["theme"],
+    private readonly footerData: FooterData,
+  ) {
+    this.unsubscribe = footerData.onBranchChange(() => tui.requestRender());
+  }
+
+  invalidate(): void {}
+
+  dispose(): void {
+    this.unsubscribe();
+  }
+
+  render(width: number): string[] {
+    const branch = this.footerData.getGitBranch();
+    const location = branch ? `${branch}  ${compactCwd(this.ctx.cwd)}` : compactCwd(this.ctx.cwd);
+    const caseText = this.status.hasMission
+      ? `case ready  ·  ${this.status.findingCount} findings  ·  ${shortRuntimeStatus()}`
+      : `case none  ·  ${shortRuntimeStatus()}`;
+
+    if (width < 56) {
+      return [
+        fitText(this.theme.fg("dim", location), width),
+        fitText(this.theme.fg("muted", caseText), width),
+        fitText(this.theme.fg("dim", modelValue(this.ctx)), width),
+      ];
+    }
+
     return [
-      `${this.theme.fg("dim", "HYP")} ${this.theme.fg("accent", String(this.status.hypothesisCount))}`,
-      `${this.theme.fg("dim", "FIND")} ${this.theme.fg("accent", String(this.status.findingCount))}`,
-      `${this.theme.fg("dim", "RUN")} ${this.theme.fg("accent", String(this.status.runCount))}`,
-    ].join(this.theme.fg("borderMuted", "  ·  "));
+      alignColumns(this.theme.fg("dim", location), this.theme.fg("dim", contextValue(this.ctx)), width),
+      alignColumns(this.theme.fg("muted", caseText), this.theme.fg("dim", modelValue(this.ctx)), width),
+    ];
+  }
+}
+
+class ShellockEditor extends CustomEditor {
+  constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
+    super(tui, theme, keybindings, { paddingX: 1 });
   }
 
-  private recordLine(): string {
-    if (!this.status.hasMission) return this.theme.fg("muted", "Record: awaiting authorized mission");
-    return `${this.theme.fg("dim", "Record:")} ${this.metricsLine()}`;
-  }
+  override render(width: number): string[] {
+    if (width < 8) return super.render(width);
 
-  private modelValue(): string {
-    const model = this.ctx.model;
-    if (!model) return "not selected";
-    const name = model.name ?? model.id;
-    return `${model.provider}/${name}`;
-  }
+    const contentWidth = width - 4;
+    const rendered = super.render(contentWidth);
+    rendered.shift();
+    const lowerBorder = rendered.findIndex((line) => /^─+(?:\s*[↑↓].*)?$/.test(stripAnsi(line)));
+    if (lowerBorder >= 0) rendered.splice(lowerBorder, 1);
 
-  private contextValue(): string {
-    const usage = this.ctx.getContextUsage();
-    const window = usage?.contextWindow ?? this.ctx.model?.contextWindow;
-    return window ? formatTokenWindow(window) : "unknown";
+    const horizontal = this.borderColor("─");
+    return [
+      `${this.borderColor("╭")}${horizontal.repeat(width - 2)}${this.borderColor("╮")}`,
+      ...rendered.map((line) => `${this.borderColor("│")} ${fitText(line, contentWidth)} ${this.borderColor("│")}`),
+      `${this.borderColor("╰")}${horizontal.repeat(width - 2)}${this.borderColor("╯")}`,
+    ];
   }
 }
 
@@ -392,12 +419,15 @@ function centerText(text: string, width: number): string {
   return `${" ".repeat(left)}${clipped}${" ".repeat(Math.max(0, width - left - visibleWidth(clipped)))}`;
 }
 
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+function alignColumns(left: string, right: string, width: number): string {
+  const availableLeft = Math.max(0, width - visibleWidth(right) - 2);
+  const clippedLeft = visibleWidth(left) > availableLeft ? truncateToWidth(left, availableLeft, "") : left;
+  const gap = " ".repeat(Math.max(2, width - visibleWidth(clippedLeft) - visibleWidth(right)));
+  return `${clippedLeft}${gap}${right}`;
 }
 
-function separatorText(width: number, theme: ExtensionContext["ui"]["theme"]): string {
-  return theme.fg("borderMuted", "═".repeat(Math.max(0, width)));
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 function compactCwd(cwd: string): string {
@@ -405,10 +435,23 @@ function compactCwd(cwd: string): string {
   return home && (cwd === home || cwd.startsWith(`${home}/`)) ? `~${cwd.slice(home.length)}` : cwd;
 }
 
-function formatTokenWindow(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M context`;
-  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k context`;
-  return `${tokens} context`;
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 10_000) return `${Math.round(tokens / 1_000)}k`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
+  return String(tokens);
+}
+
+function modelValue(ctx: ExtensionContext): string {
+  if (!ctx.model) return "no model";
+  return `${ctx.model.provider}/${ctx.model.name ?? ctx.model.id}`;
+}
+
+function contextValue(ctx: ExtensionContext): string {
+  const usage = ctx.getContextUsage();
+  const window = usage?.contextWindow ?? ctx.model?.contextWindow;
+  if (!window) return "context unknown";
+  return `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(window)}`;
 }
 
 function readPackageVersion(): string {
