@@ -38,8 +38,9 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.ok(header.at(-1).endsWith("╝"));
   assert.ok(header.some((line) => line.trimStart().startsWith("║") && line.endsWith("║")));
   assert.match(headerText, /___ \/ \/  ___ \/ \/ \/__/);
+  assert.match(header[0], /shellock/);
   assert.match(headerText, /security research harness/);
-  assert.match(headerText, /ready/);
+  assert.match(headerText, /● security research harness/);
   assert.match(headerText, /local bash/);
   assert.doesNotMatch(headerText, /case|mission|shellock-init|Tool Contract|Mission Control/iu);
   assert.ok(header.every((line) => visibleWidth(line) <= 120));
@@ -59,7 +60,6 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.match(footerText, /local bash/);
   assert.doesNotMatch(footerText, /case|mission/iu);
   assert.match(footerText, /12k \/ 1\.0M/);
-  assert.match(footerText, /test-provider\/test-model/);
 
   const editor = harness.editorComponents[0]({ terminal: { rows: 40 }, requestRender() {} }, createEditorTheme(), {});
   const editorLines = editor.render(80);
@@ -68,6 +68,7 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.ok(editorLines.at(-1).startsWith("╰"));
   assert.ok(editorLines.at(-1).endsWith("╯"));
   assert.ok(editorLines[1].startsWith("│ › "));
+  assert.match(editorLines.at(-1), /test-model/);
   assert.ok(editorLines.slice(1, -1).every((line) => line.startsWith("│ ") && line.endsWith(" │")));
   assert.ok(editorLines.every((line) => visibleWidth(line) === 80));
 
@@ -76,7 +77,7 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   const wideHeader = harness.headers[0](undefined, createTheme()).render(220);
   assert.ok(wideHeader.every((line) => visibleWidth(line) <= 220));
-  assert.ok(wideHeader.every((line) => visibleWidth(line.trimStart()) <= 112));
+  assert.ok(wideHeader.every((line) => visibleWidth(line.trimStart()) <= 104));
 });
 
 function createExtensionHarness() {

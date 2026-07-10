@@ -11,8 +11,8 @@ import { runRuntimeCommand } from "../../runtime/commands.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const PACKAGE_VERSION = readPackageVersion();
-const HEADER_MAX_WIDTH = 112;
-const HEADER_TWO_COLUMN_MIN_WIDTH = 94;
+const HEADER_MAX_WIDTH = 104;
+const HEADER_TWO_COLUMN_MIN_WIDTH = 86;
 const SHELLOCK_MARK = "shellock";
 const SHELLOCK_WORDMARK = [
   "       __       ____         __  ",
@@ -79,7 +79,7 @@ function applyTerminalBranding(ctx: ExtensionContext): void {
   });
   ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, PACKAGE_VERSION, theme));
   ctx.ui.setFooter((tui, theme, footerData) => new ShellockFooter(tui, ctx, theme, footerData));
-  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings));
+  ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings, ctx));
 }
 
 class ShellockHeader {
@@ -103,8 +103,8 @@ class ShellockHeader {
 
   private renderTwoColumn(boxWidth: number): string[] {
     const innerWidth = boxWidth - 2;
-    const leftWidth = 43;
-    const rightWidth = innerWidth - leftWidth - 1;
+    const leftWidth = 38;
+    const rightWidth = innerWidth - leftWidth - 4;
     const leftRows = this.leftPanel(leftWidth);
     const rightRows = this.rightPanel(rightWidth);
     const rowCount = Math.max(leftRows.length, rightRows.length);
@@ -129,15 +129,10 @@ class ShellockHeader {
   private renderSingleColumn(boxWidth: number): string[] {
     const innerWidth = boxWidth - 2;
     const rows = [
-      alignColumns(
-        this.brandLine(),
-        `${this.theme.fg("success", "●")} ${this.theme.fg("muted", "ready")}`,
-        innerWidth - 2,
-      ),
-      this.theme.fg("dim", "security research harness"),
-      this.keyValueLine("runtime", shortRuntimeStatus(), innerWidth),
+      `${this.theme.fg("success", "●")} ${this.theme.bold(this.theme.fg("accent", "security research harness"))}`,
       this.keyValueLine("workspace", compactCwd(this.ctx.cwd), innerWidth),
       this.keyValueLine("model", modelValue(this.ctx), innerWidth),
+      this.keyValueLine("runtime", shortRuntimeStatus(), innerWidth),
     ];
 
     return [this.topBorder(boxWidth), ...rows.map((row) => this.row(row, innerWidth)), this.bottomBorder(boxWidth)];
@@ -145,30 +140,24 @@ class ShellockHeader {
 
   private leftPanel(width: number): string[] {
     const theme = this.theme;
-    return [
-      ...SHELLOCK_WORDMARK.map((line) => centerText(theme.fg("accent", line), width)),
-      "",
-      centerText(theme.fg("muted", "security research harness"), width),
-    ];
+    return SHELLOCK_WORDMARK.map((line) => centerText(theme.fg("muted", line), width));
   }
 
   private rightPanel(width: number): string[] {
     return [
-      alignColumns(
-        `${this.theme.fg("success", "●")} ${this.theme.bold(this.theme.fg("accent", "ready"))}`,
-        this.theme.fg("dim", `v${this.version}`),
-        width,
-      ),
-      "",
+      `${this.theme.fg("success", "●")} ${this.theme.bold(this.theme.fg("accent", "security research harness"))}`,
       this.keyValueLine("workspace", compactCwd(this.ctx.cwd), width),
       this.keyValueLine("model", modelValue(this.ctx), width),
       this.keyValueLine("runtime", shortRuntimeStatus(), width),
-      "",
     ];
   }
 
   private topBorder(width: number): string {
-    return this.theme.fg("borderMuted", `╔${"═".repeat(Math.max(0, width - 2))}╗`);
+    const prefix = this.theme.fg("borderMuted", "╔═");
+    const title = this.theme.bold(this.theme.fg("accent", ` ${SHELLOCK_MARK} `));
+    const version = this.theme.fg("dim", `v${this.version} `);
+    const fillWidth = Math.max(0, width - visibleWidth(prefix) - visibleWidth(title) - visibleWidth(version) - 1);
+    return `${prefix}${title}${version}${this.theme.fg("borderMuted", `${"═".repeat(fillWidth)}╗`)}`;
   }
 
   private bottomBorder(width: number): string {
@@ -180,7 +169,7 @@ class ShellockHeader {
     return [
       theme.fg("borderMuted", "║"),
       fitText(` ${left}`, leftWidth),
-      theme.fg("borderMuted", "│"),
+      " ".repeat(4),
       fitText(` ${right}`, rightWidth),
       theme.fg("borderMuted", "║"),
     ].join("");
@@ -188,10 +177,6 @@ class ShellockHeader {
 
   private row(content: string, width: number): string {
     return `${this.theme.fg("borderMuted", "║")}${fitText(` ${content}`, width)}${this.theme.fg("borderMuted", "║")}`;
-  }
-
-  private brandLine(): string {
-    return `${this.theme.bold(this.theme.fg("accent", SHELLOCK_MARK))} ${this.theme.fg("muted", `v${this.version}`)}`;
   }
 
   private keyValueLine(label: string, value: string, width: number): string {
@@ -233,31 +218,27 @@ class ShellockFooter {
     if (width < 56) {
       return [
         fitText(this.theme.fg("dim", location), width),
-        fitText(this.theme.fg("muted", runtime), width),
-        fitText(this.theme.fg("dim", modelValue(this.ctx)), width),
-      ];
-    }
-
-    if (width >= 100) {
-      return [
-        alignThreeColumns(
-          this.theme.fg("dim", location),
-          this.theme.fg("muted", runtime),
-          this.theme.fg("dim", `${contextValue(this.ctx)} · ${modelValue(this.ctx)}`),
-          width,
-        ),
+        alignColumns(this.theme.fg("muted", runtime), this.theme.fg("dim", contextValue(this.ctx)), width),
       ];
     }
 
     return [
-      alignColumns(this.theme.fg("dim", location), this.theme.fg("dim", contextValue(this.ctx)), width),
-      alignColumns(this.theme.fg("muted", runtime), this.theme.fg("dim", modelValue(this.ctx)), width),
+      alignColumns(
+        this.theme.fg("dim", location),
+        this.theme.fg("dim", `${runtime} · ${contextValue(this.ctx)}`),
+        width,
+      ),
     ];
   }
 }
 
 class ShellockEditor extends CustomEditor {
-  constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) {
+  constructor(
+    tui: TUI,
+    theme: EditorTheme,
+    keybindings: KeybindingsManager,
+    private readonly ctx: ExtensionContext,
+  ) {
     super(tui, theme, keybindings, { paddingX: 1 });
   }
 
@@ -277,8 +258,20 @@ class ShellockEditor extends CustomEditor {
         const prefix = index === 0 ? `${this.borderColor("›")} ` : "  ";
         return `${this.borderColor("│")} ${fitText(`${prefix}${line}`, contentWidth)} ${this.borderColor("│")}`;
       }),
-      `${this.borderColor("╰")}${horizontal.repeat(width - 2)}${this.borderColor("╯")}`,
+      this.bottomBorder(width, horizontal),
     ];
+  }
+
+  private bottomBorder(width: number, horizontal: string): string {
+    if (width < 24 || !this.ctx.model) {
+      return `${this.borderColor("╰")}${horizontal.repeat(width - 2)}${this.borderColor("╯")}`;
+    }
+
+    const maxModelWidth = Math.min(48, Math.max(12, Math.floor(width * 0.4)));
+    const model = truncateToWidth(this.ctx.model.name ?? this.ctx.model.id, maxModelWidth, "");
+    const label = ` ${model} `;
+    const fillWidth = Math.max(0, width - visibleWidth(label) - 2);
+    return `${this.borderColor("╰")}${horizontal.repeat(fillWidth)}${this.borderColor(label)}${this.borderColor("╯")}`;
   }
 }
 
@@ -301,29 +294,6 @@ function alignColumns(left: string, right: string, width: number): string {
   const clippedLeft = visibleWidth(left) > availableLeft ? truncateToWidth(left, availableLeft, "") : left;
   const gap = " ".repeat(Math.max(0, width - visibleWidth(clippedLeft) - visibleWidth(clippedRight)));
   return `${clippedLeft}${gap}${clippedRight}`;
-}
-
-function alignThreeColumns(left: string, center: string, right: string, width: number): string {
-  const leftWidth = visibleWidth(left);
-  const centerWidth = visibleWidth(center);
-  const rightWidth = visibleWidth(right);
-  const centerStart = Math.max(leftWidth + 2, Math.floor((width - centerWidth) / 2));
-  const rightStart = width - rightWidth;
-
-  if (centerStart + centerWidth + 2 > rightStart) {
-    const maxRightWidth = Math.max(0, width - centerWidth - 4);
-    const clippedRight = rightWidth > maxRightWidth ? truncateToWidth(right, maxRightWidth, "") : right;
-    const availableLeft = Math.max(0, width - centerWidth - visibleWidth(clippedRight) - 4);
-    const clippedLeft = leftWidth > availableLeft ? truncateToWidth(left, availableLeft, "") : left;
-    const secondGap = " ".repeat(
-      Math.max(2, width - visibleWidth(clippedLeft) - centerWidth - visibleWidth(clippedRight) - 2),
-    );
-    return `${clippedLeft}  ${center}${secondGap}${clippedRight}`;
-  }
-
-  const firstGap = " ".repeat(centerStart - leftWidth);
-  const secondGap = " ".repeat(rightStart - centerStart - centerWidth);
-  return `${left}${firstGap}${center}${secondGap}${right}`;
 }
 
 function stripAnsi(text: string): string {
