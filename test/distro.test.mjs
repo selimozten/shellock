@@ -87,6 +87,8 @@ test("normal shellock startup creates settings without reading or copying Pi con
   assert.equal(shellockSettings.defaultThinkingLevel, "high");
   assert.deepEqual(shellockSettings.packages, []);
   assert.equal(shellockSettings.theme, "shellock-light/shellock-dark");
+  const upstreamPi = JSON.parse(await readFile(resolve("node_modules/@earendil-works/pi-coding-agent/package.json"), "utf8"));
+  assert.equal(shellockSettings.lastChangelogVersion, upstreamPi.version);
   assert.equal(shellockSettings.hideThinkingBlock, false);
   assert.equal(shellockSettings.enabledModels, undefined);
   assert.match(await readFile(join(shellockAgentDir, "themes", "shellock-dark.json"), "utf8"), /"name": "shellock-dark"/);

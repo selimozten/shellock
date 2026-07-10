@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -11,6 +11,7 @@ import shellockExtension from "../pi/extensions/shellock.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "../..");
+const PI_CORE_VERSION = readPiCoreVersion();
 const SHELLOCK_AGENT_ENV = "SHELLOCK_CODING_AGENT_DIR";
 const SHELLOCK_CONFIG_VERSION = 2;
 const SHELLOCK_THEME_SETTING = "shellock-light/shellock-dark";
@@ -87,6 +88,7 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
       defaultProjectTrust: "ask",
       quietStartup: true,
       collapseChangelog: true,
+      lastChangelogVersion: PI_CORE_VERSION,
       showHardwareCursor: true,
       hideThinkingBlock: false,
       enableInstallTelemetry: false,
@@ -97,6 +99,7 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
 
   const target = await readJsonRecord(targetPath);
   migrateLegacyShellockSettings(target);
+  target.lastChangelogVersion = PI_CORE_VERSION;
   if (target.hideThinkingBlock === undefined) target.hideThinkingBlock = false;
   if (isShellockForcedDefault(target)) {
     delete target.defaultProvider;
@@ -196,6 +199,17 @@ function isVersionRequest(args: string[]): boolean {
 async function packageVersion(): Promise<string> {
   const pkg = await readJsonRecord(join(PACKAGE_ROOT, "package.json"));
   return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+}
+
+function readPiCoreVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, "dist", "pi-core", "package.json"), "utf8")) as {
+      version?: unknown;
+    };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function printShellockHelp(): void {
