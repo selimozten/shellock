@@ -40,7 +40,7 @@ test("shellock help and version are branded and side-effect free", async () => {
   await assert.rejects(readFile(join(shellockAgentDir, "settings.json"), "utf8"));
 });
 
-test("normal shellock startup creates settings without copying Pi credentials", async () => {
+test("normal shellock startup creates settings without reading or copying Pi configuration", async () => {
   const piAgentDir = await mkdtemp(join(tmpdir(), "pi-agent-"));
   const shellockAgentDir = await mkdtemp(join(tmpdir(), "shellock-agent-"));
   const cli = resolve("dist/distro/cli.js");
@@ -58,6 +58,7 @@ test("normal shellock startup creates settings without copying Pi credentials", 
         defaultModel: "deepseek-v4-pro",
         defaultThinkingLevel: "medium",
         enabledModels: ["deepseek/deepseek-v4-pro", "together/zai-org/glm-5.2"],
+        packages: ["/tmp/unrelated-pi-pack"],
         theme: "dark",
       },
       null,
@@ -82,15 +83,24 @@ test("normal shellock startup creates settings without copying Pi credentials", 
   const shellockModels = await readOptional(join(shellockAgentDir, "models.json"));
   assert.equal(shellockSettings.defaultProvider, undefined);
   assert.equal(shellockSettings.defaultModel, undefined);
-  assert.equal(shellockSettings.defaultThinkingLevel, "medium");
+  assert.equal(shellockSettings.defaultThinkingLevel, "high");
+  assert.deepEqual(shellockSettings.packages, []);
   assert.equal(shellockSettings.theme, "shellock-light/shellock-dark");
-  assert.equal(shellockSettings.hideThinkingBlock, true);
+  assert.equal(shellockSettings.hideThinkingBlock, false);
   assert.equal(shellockSettings.enabledModels, undefined);
   assert.match(await readFile(join(shellockAgentDir, "themes", "shellock-dark.json"), "utf8"), /"name": "shellock-dark"/);
   assert.match(await readFile(join(shellockAgentDir, "themes", "shellock-light.json"), "utf8"), /"name": "shellock-light"/);
   assert.doesNotMatch(shellockAuth, /secret/);
   assert.doesNotMatch(shellockModels, /literal-secret|custom/);
   assert.equal(await readFile(piAuthPath, "utf8"), JSON.stringify({ together: { type: "api_key", key: "secret" } }, null, 2));
+  assert.deepEqual(JSON.parse(await readFile(piSettingsPath, "utf8")), {
+    defaultProvider: "deepseek",
+    defaultModel: "deepseek-v4-pro",
+    defaultThinkingLevel: "medium",
+    enabledModels: ["deepseek/deepseek-v4-pro", "together/zai-org/glm-5.2"],
+    packages: ["/tmp/unrelated-pi-pack"],
+    theme: "dark",
+  });
 });
 
 test("shellock migrates shellock-forced default model filters", async () => {
@@ -173,8 +183,8 @@ test("package exposes only the shellock binary", async () => {
   assert.deepEqual(pkg.bin, {
     shellock: "./dist/distro/cli.js",
   });
-  assert.equal(pkg.pi.themes, undefined);
-  assert.ok(pkg.files.includes("themes"));
+  assert.equal(pkg.pi, undefined);
+  assert.ok(pkg.files.includes("resources"));
 });
 
 test("shellock remains a pinned Pi-family distribution", async () => {

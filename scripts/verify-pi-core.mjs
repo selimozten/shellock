@@ -18,6 +18,7 @@ const allowedRuntimeDependencies = new Set(["@earendil-works/pi-coding-agent", .
 
 assert(rootPackage.name === "@shellock/pi-coding-agent", "package must publish as the Shellock Pi coding-agent distribution");
 assert(rootPackage.bin && Object.keys(rootPackage.bin).length === 1 && rootPackage.bin.shellock === "./dist/distro/cli.js", "package must expose only the shellock binary");
+assert(rootPackage.pi === undefined, "Shellock distribution must not advertise itself as an installable Pi resource pack");
 assert(
   rootPackage.scripts?.prepack === "npm run build && npm run verify:pi-core:dist && npm run verify:runtime-image",
   "prepack must rebuild and verify the Shellock distribution before npm pack/publish",

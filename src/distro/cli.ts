@@ -52,11 +52,10 @@ async function ensureShellockAgentConfig(): Promise<void> {
   const shellockAgentDir = process.env[SHELLOCK_AGENT_ENV] ?? join(homedir(), ".shellock", "agent");
   process.env[SHELLOCK_AGENT_ENV] = shellockAgentDir;
 
-  const piAgentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
   await mkdir(shellockAgentDir, { recursive: true });
 
   await seedBundledThemes(shellockAgentDir);
-  await seedSettings(piAgentDir, shellockAgentDir);
+  await seedSettings(shellockAgentDir);
 }
 
 async function seedBundledThemes(shellockAgentDir: string): Promise<void> {
@@ -65,38 +64,33 @@ async function seedBundledThemes(shellockAgentDir: string): Promise<void> {
 
   await Promise.all(
     SHELLOCK_THEME_FILES.map(async (file) => {
-      const source = await readFile(join(PACKAGE_ROOT, "themes", file), "utf8");
+      const source = await readFile(join(PACKAGE_ROOT, "resources", "themes", file), "utf8");
       await writeFile(join(targetDir, file), source, "utf8");
     }),
   );
 }
 
-async function seedSettings(piAgentDir: string, shellockAgentDir: string): Promise<void> {
-  const sourcePath = join(piAgentDir, "settings.json");
+async function seedSettings(shellockAgentDir: string): Promise<void> {
   const targetPath = join(shellockAgentDir, "settings.json");
-  const source = existsSync(sourcePath) ? await readJsonRecord(sourcePath) : {};
 
   if (!existsSync(targetPath)) {
     const settings = {
-      defaultThinkingLevel: typeof source.defaultThinkingLevel === "string" ? source.defaultThinkingLevel : "high",
-      packages: filterShellockPackageRefs(asStringArray(source.packages), piAgentDir),
+      defaultThinkingLevel: "high",
+      packages: [],
       theme: SHELLOCK_THEME_SETTING,
-      defaultProjectTrust: typeof source.defaultProjectTrust === "string" ? source.defaultProjectTrust : "ask",
-      quietStartup: source.quietStartup ?? true,
-      collapseChangelog: source.collapseChangelog ?? true,
-      showHardwareCursor: source.showHardwareCursor ?? true,
-      hideThinkingBlock: source.hideThinkingBlock ?? true,
-      compaction: source.compaction,
-      retry: source.retry,
-      transport: source.transport,
-      enableInstallTelemetry: source.enableInstallTelemetry ?? false,
+      defaultProjectTrust: "ask",
+      quietStartup: true,
+      collapseChangelog: true,
+      showHardwareCursor: true,
+      hideThinkingBlock: false,
+      enableInstallTelemetry: false,
     };
-    await writeJson(targetPath, stripUndefined(settings));
+    await writeJson(targetPath, settings);
     return;
   }
 
   const target = await readJsonRecord(targetPath);
-  if (target.hideThinkingBlock === undefined) target.hideThinkingBlock = true;
+  if (target.hideThinkingBlock === undefined) target.hideThinkingBlock = false;
   if (isShellockForcedDefault(target)) {
     delete target.defaultProvider;
     delete target.defaultModel;
@@ -128,20 +122,6 @@ function lowercase(value: unknown): string | undefined {
   return typeof value === "string" ? value.toLowerCase() : undefined;
 }
 
-function filterShellockPackageRefs(packages: string[], piAgentDir: string): string[] {
-  return packages.filter((entry) => {
-    if (entry.startsWith("npm:") || entry.startsWith("git:") || entry.startsWith("http:") || entry.startsWith("https:")) {
-      return true;
-    }
-
-    try {
-      return resolve(piAgentDir, entry) !== PACKAGE_ROOT;
-    } catch {
-      return true;
-    }
-  });
-}
-
 async function readJsonRecord(path: string): Promise<Record<string, unknown>> {
   const value = JSON.parse(await readFile(path, "utf8")) as unknown;
   return asRecord(value);
@@ -161,10 +141,6 @@ function asStringArray(value: unknown): string[] {
 
 function unique(values: string[]): string[] {
   return Array.from(new Set(values));
-}
-
-function stripUndefined(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
 function isHelpRequest(args: string[]): boolean {

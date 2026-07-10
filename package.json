@@ -5,7 +5,6 @@
   "description": "Shellock security operations agent harness built on the Pi terminal agent core.",
   "keywords": [
     "pi-distribution",
-    "pi-package",
     "security",
     "red-team",
     "blue-team",
@@ -22,24 +21,11 @@
   "files": [
     "dist",
     "scripts",
-    "skills",
-    "prompts",
-    "themes",
+    "resources",
     "images",
     "profiles",
     "README.md"
   ],
-  "pi": {
-    "extensions": [
-      "dist/pi/extensions/*.js"
-    ],
-    "skills": [
-      "skills"
-    ],
-    "prompts": [
-      "prompts"
-    ]
-  },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.json && node scripts/copy-pi-core.mjs && chmod +x dist/distro/cli.js",

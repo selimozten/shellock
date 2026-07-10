@@ -39,8 +39,8 @@ export default function shellockExtension(pi: ExtensionAPI) {
   const activeRuns = new Map<string, ShellockRun>();
 
   pi.on("resources_discover", () => ({
-    skillPaths: [join(PACKAGE_ROOT, "skills")],
-    promptPaths: [join(PACKAGE_ROOT, "prompts")],
+    skillPaths: [join(PACKAGE_ROOT, "resources", "skills")],
+    promptPaths: [join(PACKAGE_ROOT, "resources", "prompts")],
   }));
 
   pi.on("before_agent_start", async (event) => ({

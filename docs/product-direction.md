@@ -26,7 +26,7 @@ Do not build a separate auth system. Shellock should reuse Pi's model access pat
 - Provider API keys and tokens through environment variables or stored Pi auth
 - `/model`, `Ctrl+L`, and `--model provider/model` for selection
 
-Shellock may set opinionated defaults, but it should never make Together, Claude, Codex, OpenAI, Anthropic, or any other provider the only viable path. Shellock keeps its own `~/.shellock/agent` store and does not silently duplicate credentials, custom model registries, or enabled-model filters from `~/.pi/agent`.
+Shellock may set opinionated defaults, but it should never make Together, Claude, Codex, OpenAI, Anthropic, or any other provider the only viable path. Shellock keeps its own `~/.shellock/agent` store and never reads or writes `~/.pi/agent`; credentials, custom model registries, enabled-model filters, packages, sessions, and UI settings remain isolated.
 
 ## Core Drift Guardrails
 

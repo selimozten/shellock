@@ -70,7 +70,7 @@ npm install -g @shellock/pi-coding-agent
 shellock
 ```
 
-The `shellock` CLI creates its own `~/.shellock/agent` config on first run. It does not copy credentials from `~/.pi/agent` automatically, and it does not copy Pi's provider/model defaults, enabled-model filters, or custom model registry entries. Shellock seeds its bundled terminal themes into `~/.shellock/agent/themes`, uses the `shellock-light/shellock-dark` auto theme pair for fresh settings, and hides thinking traces by default. Existing explicit settings are not overwritten. Shellock should not silently pin a paid provider or model; model selection remains Pi's job through `/login`, `/model`, provider environment variables, and `--model`.
+The `shellock` CLI creates its own `~/.shellock/agent` config on first run. It neither reads nor writes `~/.pi/agent`, does not advertise itself as a Pi resource pack, and keeps sessions, settings, themes, credentials, models, and packages separate from Pi. Shellock seeds its bundled terminal themes into `~/.shellock/agent/themes`, uses the `shellock-light/shellock-dark` auto theme pair for fresh settings, and shows model reasoning when the selected provider exposes it. Existing explicit settings are not overwritten. Shellock should not silently pin a paid provider or model; model selection remains Pi's job through `/login`, `/model`, provider environment variables, and `--model`.
 
 ## Models And Auth
 

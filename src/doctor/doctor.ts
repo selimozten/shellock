@@ -68,8 +68,8 @@ function checkNodeVersion(): DoctorCheck {
 
 async function checkPackageAssets(): Promise<DoctorCheck[]> {
   const required = [
-    ["skills", join(PACKAGE_ROOT, "skills")],
-    ["prompts", join(PACKAGE_ROOT, "prompts")],
+    ["skills", join(PACKAGE_ROOT, "resources", "skills")],
+    ["prompts", join(PACKAGE_ROOT, "resources", "prompts")],
     ["incus image", join(PACKAGE_ROOT, "images", "incus", "shellock.yaml")],
     ...BUNDLED_RUNTIME_PROFILES.map((profile) => [`incus ${profile} profile`, join(PACKAGE_ROOT, "profiles", "incus", `${profile}.yaml`)] as const),
   ] as const;
