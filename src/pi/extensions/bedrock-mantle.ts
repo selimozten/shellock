@@ -1,5 +1,3 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-
 export const BEDROCK_MANTLE_PROVIDER = "amazon-bedrock-mantle";
 
 const MODELS = [
@@ -25,15 +23,15 @@ const MODELS = [
   },
 ];
 
-export default function bedrockMantleExtension(pi: ExtensionAPI): void {
-  pi.registerProvider(BEDROCK_MANTLE_PROVIDER, {
+export function bedrockMantleProviderConfig(env: NodeJS.ProcessEnv = process.env) {
+  return {
     name: "Amazon Bedrock (Mantle)",
-    baseUrl: bedrockMantleBaseUrl(),
+    baseUrl: bedrockMantleBaseUrl(env),
     apiKey: "$AWS_BEARER_TOKEN_BEDROCK",
     api: "openai-responses",
     authHeader: true,
     models: MODELS,
-  });
+  };
 }
 
 export function bedrockMantleBaseUrl(env: NodeJS.ProcessEnv = process.env): string {

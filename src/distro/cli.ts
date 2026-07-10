@@ -5,7 +5,10 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import bedrockMantleExtension, { BEDROCK_MANTLE_PROVIDER } from "../pi/extensions/bedrock-mantle.js";
+import {
+  BEDROCK_MANTLE_PROVIDER,
+  bedrockMantleProviderConfig,
+} from "../pi/extensions/bedrock-mantle.js";
 import incusBashExtension from "../pi/extensions/incus-bash.js";
 import shellockExtension from "../pi/extensions/shellock.js";
 
@@ -50,7 +53,7 @@ async function run(): Promise<void> {
   const piCoreMainPath = join(PACKAGE_ROOT, "dist", "pi-core", "dist", "main.js");
   const { main } = (await import(pathToFileURL(piCoreMainPath).href)) as { main: PiMain };
   await main(args, {
-    extensionFactories: [shellockExtension, bedrockMantleExtension, incusBashExtension],
+    extensionFactories: [shellockExtension, incusBashExtension],
   });
 }
 
@@ -61,7 +64,17 @@ async function ensureShellockAgentConfig(): Promise<void> {
   await mkdir(shellockAgentDir, { recursive: true });
 
   await seedBundledThemes(shellockAgentDir);
+  await seedShellockModels(shellockAgentDir);
   await seedSettings(shellockAgentDir);
+}
+
+async function seedShellockModels(shellockAgentDir: string): Promise<void> {
+  const targetPath = join(shellockAgentDir, "models.json");
+  const target = existsSync(targetPath) ? await readJsonRecord(targetPath) : {};
+  const providers = asRecord(target.providers);
+  providers[BEDROCK_MANTLE_PROVIDER] = bedrockMantleProviderConfig();
+  target.providers = providers;
+  await writeJson(targetPath, target);
 }
 
 async function seedBundledThemes(shellockAgentDir: string): Promise<void> {

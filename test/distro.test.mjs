@@ -95,6 +95,13 @@ test("normal shellock startup creates settings without reading or copying Pi con
   assert.match(await readFile(join(shellockAgentDir, "themes", "shellock-light.json"), "utf8"), /"name": "shellock-light"/);
   assert.doesNotMatch(shellockAuth, /secret/);
   assert.doesNotMatch(shellockModels, /literal-secret|custom/);
+  const generatedModels = JSON.parse(shellockModels);
+  assert.deepEqual(Object.keys(generatedModels.providers), ["amazon-bedrock-mantle"]);
+  assert.equal(generatedModels.providers["amazon-bedrock-mantle"].api, "openai-responses");
+  assert.deepEqual(
+    generatedModels.providers["amazon-bedrock-mantle"].models.map((model) => model.id),
+    ["openai.gpt-5.4", "openai.gpt-5.5"],
+  );
   assert.equal(await readFile(piAuthPath, "utf8"), JSON.stringify({ together: { type: "api_key", key: "secret" } }, null, 2));
   assert.deepEqual(JSON.parse(await readFile(piSettingsPath, "utf8")), {
     defaultProvider: "deepseek",
@@ -170,6 +177,23 @@ test("shellock migrates Bedrock GPT models to the Mantle provider", async () => 
 
   await mkdir(shellockAgentDir, { recursive: true });
   writeFileSync(
+    join(shellockAgentDir, "models.json"),
+    JSON.stringify(
+      {
+        providers: {
+          "user-provider": {
+            baseUrl: "http://localhost:1234/v1",
+            api: "openai-completions",
+            apiKey: "local",
+            models: [{ id: "user-model" }],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
     join(shellockAgentDir, "settings.json"),
     JSON.stringify(
       {
@@ -199,7 +223,9 @@ test("shellock migrates Bedrock GPT models to the Mantle provider", async () => 
   });
 
   assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout + result.stderr, /No models match pattern/);
   const shellockSettings = JSON.parse(await readFile(join(shellockAgentDir, "settings.json"), "utf8"));
+  const shellockModels = JSON.parse(await readFile(join(shellockAgentDir, "models.json"), "utf8"));
   assert.equal(shellockSettings.shellockConfigVersion, 2);
   assert.equal(shellockSettings.defaultProvider, "amazon-bedrock-mantle");
   assert.equal(shellockSettings.defaultModel, "openai.gpt-5.5");
@@ -208,6 +234,8 @@ test("shellock migrates Bedrock GPT models to the Mantle provider", async () => 
     "amazon-bedrock-mantle/openai.gpt-5.5",
     "amazon-bedrock/anthropic.claude-opus-4-6-v1",
   ]);
+  assert.deepEqual(Object.keys(shellockModels.providers).sort(), ["amazon-bedrock-mantle", "user-provider"]);
+  assert.equal(shellockModels.providers["user-provider"].models[0].id, "user-model");
 });
 
 test("shellock migrates shellock-forced default model filters", async () => {
