@@ -13,6 +13,8 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../.."
 const PACKAGE_VERSION = readPackageVersion();
 const HEADER_MAX_WIDTH = 72;
 const SHELLOCK_MARK = "shellock";
+const VIEWPORT_ANCHOR = "\x1b]1337;shellock-viewport-anchor\x07";
+const anchoredTuis = new WeakSet<TUI>();
 export default function shellockExtension(pi: ExtensionAPI) {
   pi.on("resources_discover", () => ({
     skillPaths: [join(PACKAGE_ROOT, "resources", "skills")],
@@ -68,9 +70,47 @@ function applyTerminalBranding(ctx: ExtensionContext): void {
     ],
     intervalMs: 160,
   });
-  ctx.ui.setHeader((_tui, theme) => new ShellockHeader(ctx, PACKAGE_VERSION, theme));
+  ctx.ui.setWidget("shellock-viewport-anchor", () => new ShellockViewportAnchor(), { placement: "aboveEditor" });
+  ctx.ui.setHeader((tui, theme) => {
+    installViewportAnchor(tui);
+    return new ShellockHeader(ctx, PACKAGE_VERSION, theme);
+  });
   ctx.ui.setFooter((tui, theme, footerData) => new ShellockFooter(tui, ctx, theme, footerData));
   ctx.ui.setEditorComponent((tui, theme, keybindings) => new ShellockEditor(tui, theme, keybindings));
+}
+
+function installViewportAnchor(tui: TUI): void {
+  if (anchoredTuis.has(tui)) return;
+
+  const render = tui.render.bind(tui);
+  tui.render = (width: number) => anchorViewportLines(render(width), terminalRows());
+  anchoredTuis.add(tui);
+}
+
+class ShellockViewportAnchor {
+  invalidate(): void {}
+
+  render(): string[] {
+    return [VIEWPORT_ANCHOR];
+  }
+}
+
+export function anchorViewportLines(lines: string[], rows: number): string[] {
+  const anchorIndex = lines.indexOf(VIEWPORT_ANCHOR);
+  if (anchorIndex < 0) return lines;
+
+  const occupiedRows = lines.length - 1;
+  const paddingRows = Math.max(0, Math.floor(rows) - occupiedRows);
+  return [
+    ...lines.slice(0, anchorIndex),
+    ...Array.from({ length: paddingRows }, () => ""),
+    ...lines.slice(anchorIndex + 1),
+  ];
+}
+
+function terminalRows(): number {
+  const rows = process.stdout.rows || Number(process.env.LINES) || 24;
+  return Number.isFinite(rows) && rows > 0 ? rows : 24;
 }
 
 class ShellockHeader {

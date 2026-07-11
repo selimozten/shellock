@@ -28,9 +28,10 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.equal(harness.headers.length, 1);
   assert.equal(harness.footers.length, 1);
   assert.equal(harness.editorComponents.length, 1);
+  assert.equal(harness.widgets.length, 1);
   assert.equal(harness.notifications.length, 0);
 
-  const header = harness.headers[0](undefined, createTheme()).render(120);
+  const header = harness.headers[0](createTui(), createTheme()).render(120);
   const headerText = header.join("\n");
   assert.equal(header.length, 4);
   assert.ok(header[0].trimStart().startsWith("╭"));
@@ -78,10 +79,10 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   const scrolledEditorLines = editor.render(80);
   assert.match(scrolledEditorLines[0], /↑ 4 more/);
 
-  const compactHeader = harness.headers[0](undefined, createTheme()).render(68);
+  const compactHeader = harness.headers[0](createTui(), createTheme()).render(68);
   assert.ok(compactHeader.every((line) => visibleWidth(line) <= 68));
 
-  const wideHeader = harness.headers[0](undefined, createTheme()).render(220);
+  const wideHeader = harness.headers[0](createTui(), createTheme()).render(220);
   assert.ok(wideHeader.every((line) => visibleWidth(line) <= 220));
   assert.ok(wideHeader.every((line) => visibleWidth(line.trimStart()) <= 72));
 });
@@ -100,6 +101,7 @@ function createExtensionHarness() {
   const editorComponents = [];
   const workingIndicators = [];
   const workingVisibles = [];
+  const widgets = [];
   const pi = {
     on(event, handler) {
       const list = handlers.get(event) ?? [];
@@ -128,6 +130,7 @@ function createExtensionHarness() {
     editorComponents,
     workingIndicators,
     workingVisibles,
+    widgets,
     pi,
   };
 }
@@ -169,6 +172,9 @@ function createCommandContext(cwd, harness, options = {}) {
       setWorkingIndicator(indicator) {
         harness.workingIndicators.push(indicator);
       },
+      setWidget(key, content, options) {
+        harness.widgets.push({ key, content, options });
+      },
       setHeader(factory) {
         harness.headers.push(factory);
       },
@@ -180,6 +186,15 @@ function createCommandContext(cwd, harness, options = {}) {
       },
       theme: createTheme(),
     },
+  };
+}
+
+function createTui() {
+  return {
+    render() {
+      return [];
+    },
+    requestRender() {},
   };
 }
 
