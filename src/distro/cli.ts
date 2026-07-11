@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "../..");
 const PI_CORE_VERSION = readPiCoreVersion();
 const SHELLOCK_AGENT_ENV = "SHELLOCK_CODING_AGENT_DIR";
-const SHELLOCK_CONFIG_VERSION = 2;
+const SHELLOCK_CONFIG_VERSION = 3;
 const SHELLOCK_THEME_SETTING = "shellock-light/shellock-dark";
 const SHELLOCK_THEME_FILES = ["shellock-dark.json", "shellock-light.json"];
 const LEGACY_COPIED_PACKAGES = ["npm:pi-mcp-adapter"];
@@ -119,7 +119,7 @@ async function seedSettings(shellockAgentDir: string): Promise<void> {
     delete target.defaultModel;
   }
 
-  const enabledModels = removeShellockForcedDefaultRefs(asStringArray(target.enabledModels));
+  const enabledModels = removeShellockManagedModelRefs(asStringArray(target.enabledModels));
   if (enabledModels.length > 0) {
     target.enabledModels = enabledModels;
   } else {
@@ -160,6 +160,15 @@ function migrateLegacyShellockSettings(settings: Record<string, unknown>): void 
     if (enabledModels.length > 0) settings.enabledModels = unique(enabledModels);
   }
 
+  if (version < 3) {
+    const enabledModels = removeShellockManagedModelRefs(asStringArray(settings.enabledModels));
+    if (enabledModels.length > 0) {
+      settings.enabledModels = enabledModels;
+    } else {
+      delete settings.enabledModels;
+    }
+  }
+
   settings.shellockConfigVersion = SHELLOCK_CONFIG_VERSION;
 }
 
@@ -171,9 +180,12 @@ function isShellockForcedDefault(settings: Record<string, unknown>): boolean {
   );
 }
 
-function removeShellockForcedDefaultRefs(models: string[]): string[] {
-  const legacyRefs = new Set(SHELLOCK_FORCED_MODEL_DEFAULTS.map((entry) => entry.ref.toLowerCase()));
-  return unique(models.filter((entry) => !legacyRefs.has(entry.toLowerCase())));
+function removeShellockManagedModelRefs(models: string[]): string[] {
+  const managedRefs = new Set([
+    ...SHELLOCK_FORCED_MODEL_DEFAULTS.map((entry) => entry.ref.toLowerCase()),
+    ...Array.from(BEDROCK_MANTLE_MODEL_IDS, (model) => `${BEDROCK_MANTLE_PROVIDER}/${model}`.toLowerCase()),
+  ]);
+  return unique(models.filter((entry) => !managedRefs.has(entry.toLowerCase())));
 }
 
 function lowercase(value: unknown): string | undefined {
