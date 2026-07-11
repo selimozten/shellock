@@ -19,7 +19,7 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   await harness.handlers.get("session_start")[0]({ type: "session_start", reason: "startup" }, createCommandContext(root, harness, { mode: "tui" }));
 
-  assert.equal(harness.statuses.get("shellock"), "shellock · local bash");
+  assert.equal(harness.statuses.size, 0);
   assert.match(harness.titles.at(-1), / - shellock$/);
   assert.equal(harness.hiddenThinkingLabels.at(-1), "reasoning");
   assert.equal(harness.workingMessages.at(-1), "reasoning");
@@ -32,16 +32,16 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
 
   const header = harness.headers[0](undefined, createTheme()).render(120);
   const headerText = header.join("\n");
-  assert.ok(header[0].trimStart().startsWith("╔"));
-  assert.ok(header[0].endsWith("╗"));
-  assert.ok(header.at(-1).trimStart().startsWith("╚"));
-  assert.ok(header.at(-1).endsWith("╝"));
-  assert.ok(header.some((line) => line.trimStart().startsWith("║") && line.endsWith("║")));
-  assert.match(headerText, /___ \/ \/  ___ \/ \/ \/__/);
+  assert.equal(header.length, 4);
+  assert.ok(header[0].trimStart().startsWith("╭"));
+  assert.ok(header[0].endsWith("╮"));
+  assert.ok(header.at(-1).trimStart().startsWith("╰"));
+  assert.ok(header.at(-1).endsWith("╯"));
+  assert.ok(header.some((line) => line.trimStart().startsWith("│") && line.endsWith("│")));
   assert.match(header[0], /shellock/);
-  assert.match(headerText, /security research harness/);
-  assert.match(headerText, /● security research harness/);
-  assert.match(headerText, /local bash/);
+  assert.match(headerText, /workspace/);
+  assert.match(headerText, /test-provider\/test-model/);
+  assert.doesNotMatch(headerText, /security research harness|local bash|___/);
   assert.doesNotMatch(headerText, /case|mission|shellock-init|Tool Contract|Mission Control/iu);
   assert.ok(header.every((line) => visibleWidth(line) <= 120));
 
@@ -57,7 +57,9 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   const footerText = footerLines.join("\n");
   assert.equal(footerLines.length, 1);
   assert.match(footerText, /main/);
+  assert.match(footerText, / · /);
   assert.match(footerText, /local bash/);
+  assert.match(footerText, /test-provider\/test-model/);
   assert.doesNotMatch(footerText, /case|mission/iu);
   assert.match(footerText, /12k \/ 1\.0M/);
 
@@ -68,16 +70,20 @@ test("shellock exposes terminal chrome through Pi hooks without duplicate theme 
   assert.ok(editorLines.at(-1).startsWith("╰"));
   assert.ok(editorLines.at(-1).endsWith("╯"));
   assert.ok(editorLines[1].startsWith("│ › "));
-  assert.match(editorLines.at(-1), /test-model/);
+  assert.doesNotMatch(editorLines.at(-1), /test-model/);
   assert.ok(editorLines.slice(1, -1).every((line) => line.startsWith("│ ") && line.endsWith(" │")));
   assert.ok(editorLines.every((line) => visibleWidth(line) === 80));
+
+  editor.setText(Array.from({ length: 16 }, (_, index) => `line ${index + 1}`).join("\n"));
+  const scrolledEditorLines = editor.render(80);
+  assert.match(scrolledEditorLines[0], /↑ 4 more/);
 
   const compactHeader = harness.headers[0](undefined, createTheme()).render(68);
   assert.ok(compactHeader.every((line) => visibleWidth(line) <= 68));
 
   const wideHeader = harness.headers[0](undefined, createTheme()).render(220);
   assert.ok(wideHeader.every((line) => visibleWidth(line) <= 220));
-  assert.ok(wideHeader.every((line) => visibleWidth(line.trimStart()) <= 104));
+  assert.ok(wideHeader.every((line) => visibleWidth(line.trimStart()) <= 72));
 });
 
 function createExtensionHarness() {
